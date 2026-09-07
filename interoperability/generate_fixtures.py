@@ -12,11 +12,12 @@ Reader / Writer 测试与 CI 的 ground-truth Oracle。
     不臆测（§21：以 NumPy 实现行为为准，而非机械照搬早期 NEP）。
   * 确定性输出。不嵌入时间戳；相同 numpy 版本重跑 → 字节一致的 .npy 与
     expected.json。CI 可用「重生成 + git diff 为空」或 ``--check`` 校验未漂移。
-  * 数据驱动。默认生成 P0 种子集（float32 2×3 C-order × v1.0/v2.0/v3.0）；
-    ``--full`` 展开 §15 完整矩阵（dtype × shape × order × endian × version）。
+  * 数据驱动。默认生成入库集：P0 种子集（float32 2×3 C-order × v1.0/v2.0/v3.0）
+    + M2 codec 定向矩阵（全 dtype × 字节序 × 小 shape × v1.0）；``--full`` 展开
+    §15 完整矩阵（dtype × shape × order × endian × version）。
 
 用法：
-    python interoperability/generate_fixtures.py             # 生成 P0 种子集
+    python interoperability/generate_fixtures.py             # 生成入库集(P0+M2 矩阵)
     python interoperability/generate_fixtures.py --full      # 生成 §15 完整矩阵
     python interoperability/generate_fixtures.py --check     # 只校验现有 fixture 未漂移
     python interoperability/generate_fixtures.py --out DIR   # 自定义输出目录
@@ -98,6 +99,48 @@ def full_specs() -> list[Spec]:
                     for version in versions:
                         specs.append(Spec(descr, shape, order, version))
     return specs
+
+
+def m2_matrix_specs() -> list[Spec]:
+    """M2 codec 定向矩阵子集：每 dtype × 字节序 × 小 shape × v1.0。
+
+    目标是让 MoonBit 逐元素 codec（i8..u64 / f32 / f64 × LE/BE）对真实 NumPy
+    字节做验证（计划 §9.2 / §15 / Q3 决策）。刻意保持小规模、可提交入库：
+      * 1-D (4,) C-order v1.0 覆盖全部 11 种 dtype 的字节序两态
+        （单字节 b1/i1/u1 无字节序变体，descr 前缀 '|'）。
+      * 追加 0-d scalar / 3-D / F-order 2-D（含 BE）各一，覆盖 element_count
+        计算、扁平访问器与 storage-order 元数据。
+    float 用 arange → 均为精确可表示值；bool 用奇偶交替（见 make_values）。
+    """
+    kind_sizes = [
+        ("b", 1), ("i", 1), ("i", 2), ("i", 4), ("i", 8),
+        ("u", 1), ("u", 2), ("u", 4), ("u", 8), ("f", 4), ("f", 8),
+    ]
+    specs: list[Spec] = []
+    for kind, size in kind_sizes:
+        endians = ["|"] if size == 1 else ["<", ">"]
+        for endian in endians:
+            descr = f"{endian}{kind}{size}"
+            specs.append(
+                Spec(descr, (4,), False, (1, 0), f"M2 codec 矩阵：{descr} 1-D")
+            )
+    # 追加：element_count / order / 维度覆盖（不与上面 (4,) 命名冲突）
+    specs += [
+        Spec("<f8", (), False, (1, 0), "M2：0-d scalar float64（element_count=1）"),
+        Spec("<i2", (2, 2, 2), False, (1, 0), "M2：3-D int16（element_count=8）"),
+        Spec("<f4", (2, 3), True, (1, 0), "M2：F-order 2-D float32"),
+        Spec(">i4", (2, 3), True, (1, 0), "M2：F-order 2-D BE int32"),
+    ]
+    return specs
+
+
+def committed_specs() -> list[Spec]:
+    """入库 fixture 集 = P0 种子集 + M2 codec 定向矩阵。
+
+    generate() 覆盖写 expected.json，故必须把 p0_specs 一并纳入，避免丢失
+    M1 依赖的三条 f4 (2,3) v1/v2/v3 记录。这是默认（无 --full）生成集。
+    """
+    return p0_specs() + m2_matrix_specs()
 
 
 # --- 构造确定性、非平凡的数组值 --------------------------------------------
@@ -208,6 +251,9 @@ def build_entry(spec: Spec, path: Path, raw: bytes) -> dict:
     flat = np.frombuffer(data, dtype=dt)
     order = "F" if fortran_order else "C"
     values = flat.reshape(shape if shape else (), order=order).tolist()
+    # storage-order 扁平真值：reshape 之前的缓冲顺序，正是 MoonBit 扁平
+    # 访问器（Q2：按 storage order 返回）必须逐元素对齐的 Oracle。
+    flat_values = flat.tolist()
 
     return {
         "file": path.name,
@@ -228,6 +274,7 @@ def build_entry(spec: Spec, path: Path, raw: bytes) -> dict:
         "sha256": hashlib.sha256(raw).hexdigest(),
         "data_sha256": hashlib.sha256(data).hexdigest(),
         "values": values,
+        "flat_values": flat_values,
         "note": spec.note,
     }
 
@@ -332,7 +379,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.check:
         return check(args.out)
 
-    specs = full_specs() if args.full else p0_specs()
+    specs = full_specs() if args.full else committed_specs()
     doc = generate(specs, args.out)
     _print_summary(doc)
     print(f"expected.json → {args.out / 'expected.json'}")

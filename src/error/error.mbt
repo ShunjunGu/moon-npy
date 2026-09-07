@@ -16,4 +16,4 @@ pub(all) enum NpyError {
   DataLengthMismatch(Int64, Int64) // (expected, actual)
   UnsupportedObjectArray // descr contains '|O' -> refused (security boundary, §5)
   InvalidByteOrder(Byte)
-}
+} derive(Debug)

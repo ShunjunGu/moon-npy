@@ -24,7 +24,7 @@ pub(all) enum NpyVersion {
   V1_0
   V2_0
   V3_0
-}
+} derive(Debug, Eq)
 
 ///|
 // Resolve (major, minor) to a supported version. Only `major` decides the

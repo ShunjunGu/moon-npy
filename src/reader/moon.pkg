@@ -3,7 +3,4 @@ import {
   "ShunjunGu/moon-npy/src/format",
   "ShunjunGu/moon-npy/src/header",
   "ShunjunGu/moon-npy/src/dtype",
-  "ShunjunGu/moon-npy/src/reader",
-  "moonbitlang/core/encoding/utf8",
-  "moonbitlang/x/fs",
-} for "test"
+}
