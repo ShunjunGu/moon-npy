@@ -1,0 +1,31 @@
+# --- MoonBit ---
+_build/
+.mooncakes/
+# moon.lock 需入库以保证依赖可复现（§19），故不忽略
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+
+# --- coverage（moon coverage 产物）---
+*.coverage
+bisect.coverage
+uncovered.log
+
+# --- OS / editor ---
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# --- stale local artifacts ---
+# Canonical NPY fixtures live in tests/fixtures/ (produced by
+# interoperability/generate_fixtures.py and tracked via expected.json). The
+# directory below holds superseded duplicates from an earlier draft naming
+# scheme (f32_2x3_v10/v20/v30) that are byte-identical to tests/fixtures/*.npy
+# and referenced by nothing. Ignored so they cannot re-enter staging.
+interoperability/fixtures/

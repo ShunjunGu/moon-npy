@@ -1,0 +1,127 @@
+{
+  "oracle": {
+    "numpy": "2.3.4",
+    "python": "3.14.0",
+    "generator": "interoperability/generate_fixtures.py",
+    "spec_ref": "moon-npy-plan-v0.2.md \u00a715/\u00a716, \u9644\u5f55 A",
+    "deterministic": true,
+    "note": "\u5b57\u6bb5\u5168\u90e8\u89e3\u6790\u81ea numpy \u771f\u5b9e\u4ea7\u7269\uff1b\u91cd\u8dd1\uff08\u540c numpy \u7248\u672c\uff09\u5b57\u8282\u4e00\u81f4\u3002"
+  },
+  "count": 3,
+  "fixtures": [
+    {
+      "file": "f4_2x3_c_le_v1.npy",
+      "version": [
+        1,
+        0
+      ],
+      "descr": "<f4",
+      "dtype": "float32",
+      "byteorder": "<",
+      "shape": [
+        2,
+        3
+      ],
+      "fortran_order": false,
+      "itemsize": 4,
+      "element_count": 6,
+      "header_len": 118,
+      "header_start": 10,
+      "data_offset": 128,
+      "data_nbytes": 24,
+      "file_nbytes": 152,
+      "aligned_64": true,
+      "sha256": "47d9cb788e60cfff38faf2237400d94063bde1f42a0ad39297e02642caca6b56",
+      "data_sha256": "e2c0a71510b5394df7773b63fb5f54372b84c3564e67811bde7d665be227976d",
+      "values": [
+        [
+          0.0,
+          1.0,
+          2.0
+        ],
+        [
+          3.0,
+          4.0,
+          5.0
+        ]
+      ],
+      "note": "P0 \u4e3b\u7528\u4f8b\uff1bnp.save \u6052\u4ea7\u51fa v1.0"
+    },
+    {
+      "file": "f4_2x3_c_le_v2.npy",
+      "version": [
+        2,
+        0
+      ],
+      "descr": "<f4",
+      "dtype": "float32",
+      "byteorder": "<",
+      "shape": [
+        2,
+        3
+      ],
+      "fortran_order": false,
+      "itemsize": 4,
+      "element_count": 6,
+      "header_len": 116,
+      "header_start": 12,
+      "data_offset": 128,
+      "data_nbytes": 24,
+      "file_nbytes": 152,
+      "aligned_64": true,
+      "sha256": "571633577360a26b703bd1ccd304a4b0ae3aeaa5895a0120820418e2a1cbde68",
+      "data_sha256": "e2c0a71510b5394df7773b63fb5f54372b84c3564e67811bde7d665be227976d",
+      "values": [
+        [
+          0.0,
+          1.0,
+          2.0
+        ],
+        [
+          3.0,
+          4.0,
+          5.0
+        ]
+      ],
+      "note": "v2.0\uff1auint32 header \u957f\u5ea6\u5b57\u6bb5"
+    },
+    {
+      "file": "f4_2x3_c_le_v3.npy",
+      "version": [
+        3,
+        0
+      ],
+      "descr": "<f4",
+      "dtype": "float32",
+      "byteorder": "<",
+      "shape": [
+        2,
+        3
+      ],
+      "fortran_order": false,
+      "itemsize": 4,
+      "element_count": 6,
+      "header_len": 116,
+      "header_start": 12,
+      "data_offset": 128,
+      "data_nbytes": 24,
+      "file_nbytes": 152,
+      "aligned_64": true,
+      "sha256": "82850cf02777164e1aef86199221c51dac83247c51be56ca8d1517e86fb76135",
+      "data_sha256": "e2c0a71510b5394df7773b63fb5f54372b84c3564e67811bde7d665be227976d",
+      "values": [
+        [
+          0.0,
+          1.0,
+          2.0
+        ],
+        [
+          3.0,
+          4.0,
+          5.0
+        ]
+      ],
+      "note": "v3.0\uff1auint32 header \u957f\u5ea6 + UTF-8 header"
+    }
+  ]
+}
