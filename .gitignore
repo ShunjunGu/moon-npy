@@ -1,6 +1,7 @@
 # --- MoonBit ---
 _build/
 .mooncakes/
+pkg.generated.mbti
 # moon.lock 需入库以保证依赖可复现（§19），故不忽略
 
 # --- Python ---
