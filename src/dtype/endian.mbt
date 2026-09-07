@@ -41,3 +41,20 @@ fn parse_byte_order(c : Char) -> Result[ByteOrder, @error.NpyError] {
     Err(@error.InvalidByteOrder(c.to_int().to_byte()))
   }
 }
+
+///|
+// Inverse of parse_byte_order, for the M3 Writer: the descr's leading endian
+// marker as a String, ready to concatenate with dtype.descr_code (appendix A).
+// The Writer only ever emits '<', '>' or '|' (§4.4); it never emits '='. A
+// Native order (decoded from '=') is normalized to '<' (little-endian),
+// matching every MoonBit backend's byte order -- a documented platform
+// assumption about our own runtimes, not a claim about the NPY spec (§21).
+// Returns a String (not a Char) so the descr is rebuilt by plain concatenation.
+pub fn endian_char(order : ByteOrder) -> String {
+  match order {
+    Little => "<"
+    Big => ">"
+    NotApplicable => "|"
+    Native => "<" // '=' is never written; native normalizes to little-endian
+  }
+}
