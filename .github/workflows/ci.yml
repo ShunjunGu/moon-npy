@@ -58,14 +58,22 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install "numpy==${{ env.NUMPY_VERSION }}"
 
-      # Official install script; `-s <version>` pins the exact toolchain. moon
-      # lands in $HOME/.moon/bin, which we publish to $GITHUB_PATH so the fresh
-      # shell of every later step resolves `moon`. Deps (moonbitlang/x@0.5.1)
-      # auto-resolve from the committed moon.lock on first `moon check`.
+      # Official install script; the version is a positional arg (bash -s "<ver>")
+      # that pins the exact toolchain. moon lands in $HOME/.moon/bin, which we
+      # publish to $GITHUB_PATH so the fresh shell of every later step resolves it.
       - name: Install MoonBit toolchain (pinned)
         run: |
           curl -fsSL https://cli.moonbitlang.com/install/unix.sh | bash -s "${{ env.MOONBIT_VERSION }}"
           echo "$HOME/.moon/bin" >> "$GITHUB_PATH"
+
+      # A fresh runner has an EMPTY package-registry index, so `moon check` cannot
+      # resolve the moon.mod dependency `moonbitlang/x@0.5.1` and fails with
+      # "module was not found in the registry". `moon update` git-clones the index
+      # from mooncakes.io into $HOME/.moon/registry/index (git is preinstalled on
+      # ubuntu-latest). This refreshes ONLY the registry index -- it never touches
+      # the pinned toolchain installed above, so reproducibility is preserved.
+      - name: Update MoonBit registry index
+        run: moon update
 
       # Traceability: the log records the exact toolchain that produced the run.
       - name: Record toolchain versions
