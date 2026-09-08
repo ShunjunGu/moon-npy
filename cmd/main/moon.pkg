@@ -1,0 +1,7 @@
+pkgtype(kind: "executable")
+
+import {
+  "ShunjunGu/moon-npy/src/cli",
+  "moonbitlang/x/fs",
+  "moonbitlang/core/env",
+}

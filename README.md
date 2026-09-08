@@ -20,10 +20,10 @@ interop layer*, **not** a re-implementation of NumPy.
 | **M2** dtype codec + Reader（decode → 类型化数组） | ✅ `src/dtype/`, `src/reader/` |
 | **M3** Writer（encode → 字节级对齐 `np.save`） | ✅ `src/writer/` |
 | **M4** `NumPy → MoonBit → NumPy` 字节级双向 round-trip + CI | ✅ **26/26**（第一阶段硬目标达成，§23） |
-| CLI（`inspect` / `validate`） | ⏳ 计划中（§23 排 9/18） |
+| **CLI**（`inspect` / `validate`） | ✅ `src/cli/`, `cmd/main/`（退出码 0/1/2 `$LASTEXITCODE` 实测） |
 
 Pinned toolchain（CI 复现基准）：**MoonBit `0.1.20260827`** · **NumPy `2.3.4`** · Python `3.14`。
-44 单元测试（`moon test --target native`）+ 26 fixture 跨语言 round-trip 全绿。
+65 单元测试（`moon test --target native`）+ 26 fixture 跨语言 round-trip 全绿。
 
 ## Features
 
@@ -34,7 +34,8 @@ Pinned toolchain（CI 复现基准）：**MoonBit `0.1.20260827`** · **NumPy `2
   字节对齐、空格填充、`\n` 收尾）；已验证至 300 KB payload。
 - ✅ **Interop** — `NumPy → MoonBit → NumPy` 双向 round-trip，`np.array_equal` + 逐字节校验，
   26 fixture 全通过。
-- ⏳ **CLI** — `moon-npy inspect <file>` / `moon-npy validate <file>`（计划中）。
+- ✅ **CLI** — `inspect <file.npy>`（元数据表）/ `validate <file.npy>`（`✓`/`✗` 判定）；退出码
+  valid→0 / 非法文件→1 / 打不开或用法错→2（§13）。纯逻辑在 `src/cli/`，`cmd/main/` 只做 IO。
 
 ## Round-trip demo（§29）
 
@@ -59,6 +60,37 @@ python interoperability/verify_moonbit_output.py embeddings-moonbit.npy \
 ```bash
 python interoperability/roundtrip.py        # emit(moon run) + verify(numpy) 聚合，26/26
 ```
+
+## CLI（§13）
+
+`cmd/main/` 是薄可执行壳（只做两件事：`@fs` 读字节、设进程退出码），全部参数解析与输出
+渲染都在纯库 `src/cli/`（不碰 IO，可被 `tests/cli_test.mbt` 黑盒覆盖）。
+
+```bash
+moon run cmd/main --target native -- inspect  tests/fixtures/f4_2x3_c_le_v1.npy
+moon run cmd/main --target native -- validate tests/fixtures/f4_2x3_c_le_v1.npy
+```
+
+`inspect` 打印元数据表（标签列宽 14，`Data size` 用二进制单位、两位小数）：
+
+```text
+NPY Array
+──────────────────────────
+Format        NPY 1.0
+DType         float32
+Byte order    little-endian
+Shape         [2, 3]
+Dimensions    2
+Elements      6
+Memory order  C
+Data size     24 B
+──────────────────────────
+Status        valid
+```
+
+`validate` 成功打印 `✓ <file> is a valid NPY file`，失败打印 `✗ <file>` + 结构化错误。
+**退出码纪律**：valid → 0；文件非法（任一 `NpyError`）→ 1；文件打不开 / 用法错误 → 2
+（两类非 0 码互不混淆）。
 
 ## Compatibility Oracle
 
@@ -91,14 +123,14 @@ moon-npy/
 │   ├── dtype/             # dtype codec + endian
 │   ├── reader/            # decode(Bytes) -> NpyArray
 │   ├── writer/            # encode(NpyArray) -> Bytes（字节级对齐 np.save）
-│   └── error/             # enum NpyError + Result
-├── tests/                 # *_test.mbt（44）+ fixtures/（*.npy + expected.json）
+│   ├── error/             # enum NpyError + Result
+│   └── cli/               # inspect / validate 纯逻辑（parse_args + 渲染，无 IO）
+├── cmd/main/              # CLI 可执行薄壳（@fs 读字节 + extern "c" exit 设退出码）
+├── tests/                 # *_test.mbt（65）+ fixtures/（*.npy + expected.json）
 ├── interoperability/      # generate_fixtures.py / verify_moonbit_output.py / roundtrip.py
 ├── examples/roundtrip/    # emit harness（decode -> encode -> write，`moon run`）
 └── .github/workflows/     # ci.yml（§19：fmt/check/test/coverage/fixture/round-trip）
 ```
-
-> `cmd/main/`（CLI inspect / validate）计划中（§23 排 9/18），尚未落地。
 
 ## Building & testing
 
@@ -106,7 +138,7 @@ moon-npy/
 
 ```bash
 moon check --target native                 # 类型检查
-moon test --target native                  # 44 单元测试
+moon test --target native                  # 65 单元测试
 moon test --target native --enable-coverage; moon coverage report -f summary   # 覆盖率
 python interoperability/generate_fixtures.py --check   # fixture 未漂移
 python interoperability/roundtrip.py       # 26 fixture 字节级 round-trip

@@ -10,6 +10,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **CLI（`inspect` / `validate`）** — `src/cli/`（纯逻辑库：`parse_args` + 输出渲染，无 IO，
+  可单测）+ `cmd/main/`（薄可执行壳：`@fs` 读字节 + `extern "c"` `exit` 设进程退出码）。
+  输出严格对齐 §13（14 列标签表、千分位字节数、`✓`/`✗` 判定）；退出码纪律 valid → 0 /
+  非法文件（`NpyError`）→ 1 / 打不开或用法错误 → 2，`$LASTEXITCODE` 实测三类互不混淆。
+  `moon run cmd/main --target native -- <inspect|validate> <file.npy>`；CI 增 CLI 冒烟步骤。
 - **字节级双向 round-trip（M4）** — 打通 `NumPy → MoonBit → NumPy` 完整链路，第一阶段
   硬目标达成（计划 §23）：
   - `examples/roundtrip/` — 可执行 emit harness：读 `.npy` → `decode` → `encode` → 落盘

@@ -102,3 +102,21 @@ jobs:
       #            np.array_equal AND byte-for-byte identity vs the Oracle.
       - name: NumPy -> MoonBit -> NumPy round-trip (26 fixtures)
         run: python interoperability/roundtrip.py -v
+
+      # CLI smoke + exit-code discipline (§13) — the README's inspect/validate
+      # commands, run for real. `moon run` propagates the child's status, so the
+      # extern "c" exit_with is exercised end-to-end: a valid fixture exits 0, a
+      # readable non-NPY file (README.md) exits 1 (InvalidMagic), a missing file
+      # exits 2. The two non-zero codes must stay distinct (§13 退出码纪律).
+      - name: CLI inspect / validate + exit codes
+        run: |
+          moon run cmd/main --target native -- inspect tests/fixtures/f4_2x3_c_le_v1.npy
+          moon run cmd/main --target native -- validate tests/fixtures/f4_2x3_c_le_v1.npy
+          set +e
+          moon run cmd/main --target native -- validate README.md
+          invalid=$?
+          moon run cmd/main --target native -- validate does_not_exist.npy
+          missing=$?
+          set -e
+          test "$invalid" -eq 1
+          test "$missing" -eq 2
