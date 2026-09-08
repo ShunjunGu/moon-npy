@@ -6,10 +6,13 @@ The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [v0.1.0] - 2026-09-08
 
 ### Added
 
+- **文档定版（验收准备）** — `README.md` 全量补齐计划 §25 Documentation 十小节（安装 / 快速
+  开始 / 兼容性矩阵 / CLI 用法 / 库 API / 限制 / 生态位 / 安全 / 开发 / 许可证）+ §28 生态位图
+  + 架构数据流图；新增 `README_CN.md` 全中文版（与英文版双向链接、技术事实与 API 签名逐条一致）。
 - **边缘用例 / Fuzz / 覆盖率门禁（M5）** — 第一阶段特性冻结前的鲁棒性收口（计划 §14 / §18），
   单元测试 65 → **85** 全绿：
   - `tests/edge_test.mbt`（17 用例）— **在测试代码内合成**负面 / 边缘用例（不新增 fixture 文件）：

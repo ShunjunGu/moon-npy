@@ -1,37 +1,33 @@
 # moon-npy
 
-Pure MoonBit reader / writer for the **NumPy NPY binary array format** — an
-interoperability layer between MoonBit's numeric-computing ecosystem and the
-Python / NumPy / AI data ecosystem.
+**NumPy NPY 二进制数组格式**的纯 MoonBit 读写库 —— 连接 MoonBit 数值计算生态与
+Python / NumPy / AI 数据生态的**互操作层**。
 
-moon-npy lets MoonBit programs read, validate, and produce `.npy` files
-**without a Python runtime and without Python FFI**. It is a *format
-interop layer*, **not** a re-implementation of NumPy.
+moon-npy 让 MoonBit 程序能够读取、校验并生成 `.npy` 文件，**无需 Python 运行时、无需
+Python FFI**。它是一个*格式互操作层*，**不是** NumPy 的重新实现。
 
-> 中文说明见 [`README_CN.md`](README_CN.md)。
+> English / 双语版见 [`README.md`](README.md)。
 
-## Ecosystem Position
+## 生态位（Ecosystem Position）
 
 ```text
-               Numerical Computing
+                 数值计算
          numbt / numoon / moonNum
-                   │ arrays
+                   │ 数组
                    ▼
              ┌───────────┐
              │ moon-npy  │
              └───────────┘
                    │ .npy
                    ▼
-       NumPy / PyTorch / ML ecosystem
+       NumPy / PyTorch / 机器学习生态
 ```
 
-> `moon-npy` is not another NumPy implementation. Existing MoonBit numerical
-> libraries focus on numerical computation and multidimensional arrays;
-> `moon-npy` focuses specifically on **interoperable NumPy binary
-> serialization** — the missing `.npy` bridge that lets a MoonBit program
-> exchange arrays with the Python / ML data ecosystem byte-for-byte.
+> `moon-npy` 不是又一个 NumPy 实现。现有的 MoonBit 数值库聚焦于数值计算与多维数组；
+> `moon-npy` 专注于**可互操作的 NumPy 二进制序列化** —— 那块缺失的 `.npy` 桥梁，让
+> MoonBit 程序能与 Python / ML 数据生态**逐字节**交换数组。
 
-## Status
+## 项目状态（Status）
 
 | 阶段 | 状态 |
 |---|---|
@@ -44,19 +40,19 @@ interop layer*, **not** a re-implementation of NumPy.
 | **CLI**（`inspect` / `validate`） | ✅ `src/cli/`, `cmd/main/`（退出码 0/1/2 `$LASTEXITCODE` 实测） |
 | **M5** 边缘 / Fuzz / 覆盖率（§18 totality、§14 阈值） | ✅ 85 测试全绿；core parser **98.5%**、overall **91.3%**（CI 强制门禁） |
 
-Pinned toolchain（CI 复现基准）：**MoonBit `0.1.20260827`** · **NumPy `2.3.4`** · Python `3.14`。
-85 单元测试（`moon test --target native`）+ 26 fixture 跨语言 round-trip 全绿；覆盖率 core parser
-（format+lexer+parser）**98.5%**、项目 overall **91.3%**（CI 强制阈值 ≥90% / ≥80%）。
+锁定工具链（CI 复现基准）：**MoonBit `0.1.20260827`** · **NumPy `2.3.4`** · Python `3.14`。
+85 个单元测试（`moon test --target native`）+ 26 个 fixture 跨语言 round-trip 全绿；覆盖率 core
+parser（format+lexer+parser）**98.5%**、项目 overall **91.3%**（CI 强制阈值 ≥90% / ≥80%）。
 
-## Features
+## 特性（Features）
 
-- ✅ **Reader** — NPY v1.0 / v2.0 / v3.0；primitive numeric dtype（bool / i1–i8 / u1–u8 /
-  f4 / f8）；N-D shape（含 0-d scalar、3-D）；C / Fortran order；endianness（`<` / `>` / `|`，
+- ✅ **Reader** — NPY v1.0 / v2.0 / v3.0；primitive 数值 dtype（bool / i1–i8 / u1–u8 /
+  f4 / f8）；N-D shape（含 0-d 标量、3-D）；C / Fortran order；字节序（`<` / `>` / `|`，
   Reader 另接受 `=`）。结构化错误（`enum NpyError` + `Result`），损坏文件拒绝得也对。
 - ✅ **Writer** — 产物与 `np.save` / `numpy.lib.format.write_array` **逐字节一致**（含 64
   字节对齐、空格填充、`\n` 收尾）；已验证至 300 KB payload。
-- ✅ **Interop** — `NumPy → MoonBit → NumPy` 双向 round-trip，`np.array_equal` + 逐字节校验，
-  26 fixture 全通过。
+- ✅ **互操作** — `NumPy → MoonBit → NumPy` 双向 round-trip，`np.array_equal` + 逐字节校验，
+  26 个 fixture 全通过。
 - ✅ **CLI** — `inspect <file.npy>`（元数据表）/ `validate <file.npy>`（`✓`/`✗` 判定）；退出码
   valid→0 / 非法文件→1 / 打不开或用法错→2（§13）。纯逻辑在 `src/cli/`，`cmd/main/` 只做 IO。
 - ✅ **鲁棒性（M5）** — 边缘用例（0-d / N-D、Fortran-order、big-endian、`=` native、空数组、全
@@ -64,7 +60,7 @@ Pinned toolchain（CI 复现基准）：**MoonBit `0.1.20260827`** · **NumPy `2
   `validate` 恒返 `Ok` 或结构化 `Err(NpyError)`，绝不 crash / hang / 越界 / 失控分配，7000 次迭代
   全绿）；负面用例在测试代码内合成，逐条钉住每个 `NpyError` 分支。
 
-## Installation
+## 安装（Installation）
 
 模块清单 `moon.mod` 声明 `name = "ShunjunGu/moon-npy"`、`version = "0.1.0"`、
 `preferred_target = "native"`，唯一依赖 `moonbitlang/x@0.5.1`（`@fs` 文件 IO）。
@@ -78,7 +74,7 @@ moon add ShunjunGu/moon-npy
 随后在用到它的包的 `moon.pkg` 里按需 import（包级引用）：
 
 ```jsonc
-// your moon.pkg
+// 你的 moon.pkg
 import {
   "ShunjunGu/moon-npy/src/reader",
   "ShunjunGu/moon-npy/src/writer",
@@ -97,7 +93,7 @@ moon run cmd/main --target native -- inspect tests/fixtures/f4_2x3_c_le_v1.npy
 
 > `moon` 可能不在 PATH：PowerShell 下 `$env:Path = "$env:USERPROFILE\.moon\bin;$env:Path"`。
 
-## Quick Start
+## 快速开始（Quick Start）
 
 读一个 `.npy` 并取出类型化元素（`decode` 返回 `Result`，失败是结构化 `NpyError`，绝不 crash）：
 
@@ -118,7 +114,7 @@ match @reader.decode(bytes) {
 按需把 payload 解成对应 MoonBit 类型的扁平数组（storage order）。只需元数据不解元素时用
 `validate`（返回 `NpyMeta`）。写回：`@writer.encode(arr)` 得到与 `np.save` 逐字节一致的 `Bytes`。
 
-## Round-trip demo（§29）
+## 往返演示（Round-trip demo，§29）
 
 NumPy 写一个 `100×768` float32 数组，MoonBit 读入 → 重新编码 → 写回，NumPy 再校验**逐字节一致**：
 
@@ -136,31 +132,31 @@ python interoperability/verify_moonbit_output.py embeddings-moonbit.npy \
 #    -> [verify] PASS
 ```
 
-批量对全部 26 fixture 跑同一链路（**CI 实际执行的命令**）：
+批量对全部 26 个 fixture 跑同一链路（**CI 实际执行的命令**）：
 
 ```bash
 python interoperability/roundtrip.py        # emit(moon run) + verify(numpy) 聚合，26/26
 ```
 
-## Compatibility Matrix
+## 兼容性矩阵（Compatibility Matrix）
 
 正确性以**当前 NumPy 的实际行为**为唯一 Oracle。支持矩阵（§15，全部经 fixture 实测）：
 
 | 维度 | 支持取值 | 说明 |
 |---|---|---|
 | **version** | 1.0 / 2.0 / 3.0 | v1 用 uint16 header-length，v2/v3 用 uint32 |
-| **dtype** | `bool` · `i1 i2 i4 i8` · `u1 u2 u4 u8` · `f4 f8` | 11 种 primitive numeric；各有 `to_*` accessor |
-| **shape** | 0-d `()` · 1-d · N-d（实测含 `(2,3)`、`(2,2,2)`） | 0-d scalar → `element_count == 1` |
+| **dtype** | `bool` · `i1 i2 i4 i8` · `u1 u2 u4 u8` · `f4 f8` | 11 种 primitive 数值；各有 `to_*` accessor |
+| **shape** | 0-d `()` · 1-d · N-d（实测含 `(2,3)`、`(2,2,2)`） | 0-d 标量 → `element_count == 1` |
 | **memory order** | C / Fortran | `fortran_order` 作 metadata；accessor 返回 storage-order 扁平数组 |
 | **byte order** | `<` little · `>` big · `\|` N/A · `=` native | `=` native 读作 little-endian（MoonBit 各后端均小端，平台假设） |
 
 **不支持**（识别后返回结构化 `UnsupportedDType` / `UnsupportedObjectArray`，而非静默出错）：
-object（`\|O`，**主动拒绝**，见 Security）、complex（`c`）、half / longdouble（`e`/`g`）、
+object（`\|O`，**主动拒绝**，见「安全」）、complex（`c`）、half / longdouble（`e`/`g`）、
 bytes / str（`S`/`U`）、void / structured（`V`）、datetime / timedelta（`M`/`m`）。NPZ、
-GGUF / SafeTensors / Parquet 不在范围内（见 Limitations）。
+GGUF / SafeTensors / Parquet 不在范围内（见「限制」）。
 
 当前入库 fixture 集（**26 个**）：float32 `(2,3)` C-order × v1.0 / v2.0 / v3.0（覆盖 uint16 与
-uint32 两条 header-length 解析路径）+ 全 dtype × 字节序定向矩阵 + 0-d scalar + 3-D +
+uint32 两条 header-length 解析路径）+ 全 dtype × 字节序定向矩阵 + 0-d 标量 + 3-D +
 Fortran-order。fixture 由 `interoperability/generate_fixtures.py` 用 `numpy.lib.format` 生成，
 并从真实产物字节反推 [`tests/fixtures/expected.json`](tests/fixtures/expected.json)（version /
 descr / shape / order / header_len / data_offset / checksum / values）；MoonBit 测试断言对齐它。
@@ -172,7 +168,7 @@ python interoperability/generate_fixtures.py --check   # 校验未漂移（CI）
 python interoperability/generate_fixtures.py --full    # §15 完整矩阵
 ```
 
-## CLI Usage（§13）
+## 命令行用法（CLI Usage，§13）
 
 `cmd/main/` 是薄可执行壳（只做两件事：`@fs` 读字节、设进程退出码），全部参数解析与输出
 渲染都在纯库 `src/cli/`（不碰 IO，可被 `tests/cli_test.mbt` 黑盒覆盖）。
@@ -203,7 +199,7 @@ Status        valid
 **退出码纪律**：valid → 0；文件非法（任一 `NpyError`）→ 1；文件打不开 / 用法错误 → 2
 （两类非 0 码互不混淆，便于脚本区分「坏文件」与「坏调用」）。
 
-## Library API
+## 库 API（Library API）
 
 核心层纯 `Bytes → 结构`，无文件系统 / CLI 依赖；失败一律 `Result[T, NpyError]`，绝不用 `Bool`
 或裸 `String` 表达错误。公共接口（签名以源码为准）：
@@ -256,7 +252,7 @@ pub(all) enum NpyError {
 `i64 → Array[Int64]`、`u8/u16 → Array[Int]`、`u32 → Array[Int64]`（`0..2³²-1` 装不进 32 位 `Int`，
 加宽）、`u64 → Array[UInt64]`。
 
-## Architecture
+## 架构（Architecture）
 
 数据流与模块依赖（每层只依赖其上游，`cli` 纯逻辑、`cmd/main` 是唯一碰 IO 的薄壳）：
 
@@ -264,13 +260,13 @@ pub(all) enum NpyError {
   Bytes  (来自 @fs.read_file_to_bytes 或内存)
     │
     ▼
-  format    magic · version · header-length 前缀        ──►  NpyPrefix
+  format    magic · version · header 长度前缀        ──►  NpyPrefix
     │
     ▼
-  header    lexer + 受限 Python-literal parser          ──►  NpyHeader { descr, shape, fortran_order }
+  header    词法 + 受限 Python-literal 解析器        ──►  NpyHeader { descr, shape, fortran_order }
     │
     ▼
-  dtype     descr → (DType, ByteOrder) · itemsize · codec
+  dtype     descr → (DType, ByteOrder) · itemsize · 编解码
     │
     ├──►  reader.validate(Bytes) → NpyMeta        （只校验，不解元素）
     ├──►  reader.decode(Bytes)   → NpyArray → to_f32() / to_i64() / …  （惰性类型化访问）
@@ -283,7 +279,7 @@ pub(all) enum NpyError {
   cmd/main  薄壳：@fs 读字节 + extern "c" exit 设退出码（唯一 IO 边界）
 ```
 
-## Layout
+## 目录结构（Layout）
 
 ```text
 moon-npy/
@@ -292,8 +288,8 @@ moon-npy/
 ├── moon.mod               # 模块清单（ShunjunGu/moon-npy, native）
 ├── src/
 │   ├── format/            # magic + version 常量
-│   ├── header/            # v1/v2/v3 header lexer + parser
-│   ├── dtype/             # dtype codec + endian
+│   ├── header/            # v1/v2/v3 header 词法 + 解析器
+│   ├── dtype/             # dtype codec + 字节序
 │   ├── reader/            # decode(Bytes) -> NpyArray
 │   ├── writer/            # encode(NpyArray) -> Bytes（字节级对齐 np.save）
 │   ├── error/             # enum NpyError + Result
@@ -305,7 +301,7 @@ moon-npy/
 └── .github/workflows/     # ci.yml（§19：fmt/check/test/coverage/fixture/round-trip）
 ```
 
-## Limitations
+## 限制（Limitations）
 
 范围控制是本项目的第一原则（§5「明确不做什么」）。v0.1.0 **有意不实现**：
 
@@ -313,7 +309,7 @@ moon-npy/
   模型加载（PyTorch 等）。moon-npy 只做 `.npy` 二进制**序列化 / 反序列化**。
 - **不做其他格式**：GGUF / SafeTensors / Parquet / **NPZ**（NPZ = ZIP 容器 + 多 NPY，属
   Stretch，不作比赛核心交付）。
-- **dtype 范围**：仅 11 种 primitive numeric（见 Compatibility Matrix）。**object dtype 主动
+- **dtype 范围**：仅 11 种 primitive 数值（见「兼容性矩阵」）。**object dtype 主动
   拒绝**；complex / half / longdouble / bytes / str / void / structured / datetime / timedelta
   识别后返回 `UnsupportedDType`（结构化，非崩溃）。
 - **不自动 reshape**：accessor 返回 storage-order **扁平** `Array[T]` + `shape` / `fortran_order`
@@ -322,13 +318,13 @@ moon-npy/
   （payload 原样透传、header 按 NumPy 文本形式重建）；「从任意 typed array 构造 NPY」为预留能力。
 - **单文件、全内存**：一次性读入 `Bytes` 后解析，无 streaming / 分块读（Stretch）。
 
-## Security
+## 安全（Security）
 
 moon-npy 的解析器面向**不可信输入**设计，安全属性由 §18 fuzz（7000 次迭代）持续验证：
 
 - **拒绝 object / pickle 载荷**：`descr` 含 `|O` → `UnsupportedObjectArray`，在解析 size 前即拒绝。
   NPY object array 依赖 Python pickle，NumPy 官方明确警告加载 pickle 数据可能**执行任意代码**；
-  > moon-npy v0.x intentionally does not deserialize Python object arrays or pickle payloads.
+  > moon-npy v0.x 有意不反序列化 Python object 数组或 pickle 载荷。
 
   这既降低工程复杂度，也形成清晰的安全边界。
 - **全有界解析（totality）**：任意 `Bytes` 输入，`decode` / `validate` 恒返回 `Ok` 或结构化
@@ -343,7 +339,7 @@ moon-npy 的解析器面向**不可信输入**设计，安全属性由 §18 fuzz
 - **无 unsafe / 无 FFI / 无 Python 运行时**：核心层纯 `Bytes → 结构`，唯一 IO 在 `cmd/main`
   的 `@fs` 读字节，攻击面小。
 
-## Development
+## 开发（Development）
 
 前置：**MoonBit `0.1.20260827`**（pinned）、native target；跨语言测试另需 **NumPy `2.3.4`** /
 **Python `3.14`**。工具链事实与语法约定以 [`AGENTS.md`](AGENTS.md) 为**权威**（M0 实测固化，
@@ -376,10 +372,10 @@ python interoperability/roundtrip.py                   # 26 fixture 字节级 ro
 的 `import { … } for "test"`；每个顶层块前用 `///|` 分隔（`moon fmt` 会规整）。
 
 **里程碑**：M0（工具链 gate）→ M1（header）→ M2（dtype+reader）→ M3（writer）→ M4（round-trip）
-→ CLI → M5（edge/fuzz/coverage），见 Status 表；每个里程碑一个规范 commit，`CHANGELOG.md` 记录。
+→ CLI → M5（edge/fuzz/coverage），见「项目状态」表；每个里程碑一个规范 commit，`CHANGELOG.md` 记录。
 **Feature Freeze（9/22）** 后仅接受 bug fix / tests / docs / compatibility fix / CLI UX / packaging。
 
-## CI
+## 持续集成（CI）
 
 [`.github/workflows/ci.yml`](.github/workflows/ci.yml)（§19）在 `ubuntu-latest` 上 pin
 MoonBit `0.1.20260827+d0aaa07` / NumPy `2.3.4` / Python `3.14`，依次跑：`moon fmt`（无 diff）
@@ -387,11 +383,11 @@ MoonBit `0.1.20260827+d0aaa07` / NumPy `2.3.4` / Python `3.14`，依次跑：`mo
 即失败）→ fixture `--check` → `roundtrip.py`（26 fixture emit + verify + byte-exact）→ CLI 冒烟
 （inspect / validate + 退出码 0/1/2）。README 展示的例子即 CI 实际运行的例子（§19 铁律）。
 
-## License
+## 许可证（License）
 
-Apache-2.0 — see [`LICENSE`](LICENSE).
+Apache-2.0 — 见 [`LICENSE`](LICENSE)。
 
 ---
 
-_Built for the 2026 MoonBit 国产基础软件生态开源大赛 · 9 月黑客松。_
+_为 2026 MoonBit 国产基础软件生态开源大赛 · 9 月黑客松而建。_
 _设计原则：NPY first / Correctness first / Interop first / Tests first / Small but complete._
