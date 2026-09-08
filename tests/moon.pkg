@@ -7,5 +7,6 @@ import {
   "ShunjunGu/moon-npy/src/writer",
   "ShunjunGu/moon-npy/src/cli",
   "moonbitlang/core/encoding/utf8",
+  "moonbitlang/core/quickcheck/splitmix",
   "moonbitlang/x/fs",
 } for "test"

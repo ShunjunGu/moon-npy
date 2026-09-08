@@ -10,6 +10,20 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **边缘用例 / Fuzz / 覆盖率门禁（M5）** — 第一阶段特性冻结前的鲁棒性收口（计划 §14 / §18），
+  单元测试 65 → **85** 全绿：
+  - `tests/edge_test.mbt`（17 用例）— **在测试代码内合成**负面 / 边缘用例（不新增 fixture 文件）：
+    0-d / N-D、Fortran-order、big-endian、`=` native、空数组、截断 / 损坏 header、shape 溢出、
+    payload 长度不符等，逐条钉住具体 `NpyError` 分支。
+  - `tests/fuzz_test.mbt`（3 property 测试）— 确定性 splitmix PRNG（`moonbitlang/core/quickcheck/splitmix`，
+    固定种子、可精确复现、无 flaky）驱动 §18 totality 不变式：任意 `Bytes` → `decode` / `validate`
+    恒返 `Ok` 或结构化 `Err(NpyError)`，绝不 crash / hang / 越界 / 失控分配；三输入分布（纯随机字节 /
+    合法 v1 前缀 + 随机 body / 26 fixture 变异），共 **7000 次迭代**全绿，并断言 decode ≡ validate、
+    Ok 路径 accessor 恰返 `element_count` 个元素。`tests/moon.pkg` 增导入 splitmix。
+  - `.github/workflows/ci.yml` — coverage 步骤由「非阻塞摘要」升级为**强制阈值门禁**：awk 解析
+    `moon coverage report -f summary`，core parser（format+lexer+parser）≥ 90% 且项目 overall ≥ 80%，
+    任一未达即 CI 失败（去掉 `continue-on-error`）。本地实测 core parser **98.5%**（129/131，format.mbt
+    100% 未列入 summary 故为保守下界）、overall **91.3%**（557/610），双阈值达标。
 - **CLI（`inspect` / `validate`）** — `src/cli/`（纯逻辑库：`parse_args` + 输出渲染，无 IO，
   可单测）+ `cmd/main/`（薄可执行壳：`@fs` 读字节 + `extern "c"` `exit` 设进程退出码）。
   输出严格对齐 §13（14 列标签表、千分位字节数、`✓`/`✗` 判定）；退出码纪律 valid → 0 /

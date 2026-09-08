@@ -21,9 +21,11 @@ interop layer*, **not** a re-implementation of NumPy.
 | **M3** Writer（encode → 字节级对齐 `np.save`） | ✅ `src/writer/` |
 | **M4** `NumPy → MoonBit → NumPy` 字节级双向 round-trip + CI | ✅ **26/26**（第一阶段硬目标达成，§23） |
 | **CLI**（`inspect` / `validate`） | ✅ `src/cli/`, `cmd/main/`（退出码 0/1/2 `$LASTEXITCODE` 实测） |
+| **M5** 边缘 / Fuzz / 覆盖率（§18 totality、§14 阈值） | ✅ 85 测试全绿；core parser **98.5%**、overall **91.3%**（CI 强制门禁） |
 
 Pinned toolchain（CI 复现基准）：**MoonBit `0.1.20260827`** · **NumPy `2.3.4`** · Python `3.14`。
-65 单元测试（`moon test --target native`）+ 26 fixture 跨语言 round-trip 全绿。
+85 单元测试（`moon test --target native`）+ 26 fixture 跨语言 round-trip 全绿；覆盖率 core parser
+（format+lexer+parser）**98.5%**、项目 overall **91.3%**（CI 强制阈值 ≥90% / ≥80%）。
 
 ## Features
 
@@ -36,6 +38,10 @@ Pinned toolchain（CI 复现基准）：**MoonBit `0.1.20260827`** · **NumPy `2
   26 fixture 全通过。
 - ✅ **CLI** — `inspect <file.npy>`（元数据表）/ `validate <file.npy>`（`✓`/`✗` 判定）；退出码
   valid→0 / 非法文件→1 / 打不开或用法错→2（§13）。纯逻辑在 `src/cli/`，`cmd/main/` 只做 IO。
+- ✅ **鲁棒性（M5）** — 边缘用例（0-d / N-D、Fortran-order、big-endian、`=` native、空数组、全
+  dtype × shape × order × version）+ 确定性 splitmix fuzz（§18 totality：任意 `Bytes` → `decode` /
+  `validate` 恒返 `Ok` 或结构化 `Err(NpyError)`，绝不 crash / hang / 越界 / 失控分配，7000 次迭代
+  全绿）；负面用例在测试代码内合成，逐条钉住每个 `NpyError` 分支。
 
 ## Round-trip demo（§29）
 
@@ -126,7 +132,7 @@ moon-npy/
 │   ├── error/             # enum NpyError + Result
 │   └── cli/               # inspect / validate 纯逻辑（parse_args + 渲染，无 IO）
 ├── cmd/main/              # CLI 可执行薄壳（@fs 读字节 + extern "c" exit 设退出码）
-├── tests/                 # *_test.mbt（65）+ fixtures/（*.npy + expected.json）
+├── tests/                 # *_test.mbt（85，含 edge / fuzz）+ fixtures/（*.npy + expected.json）
 ├── interoperability/      # generate_fixtures.py / verify_moonbit_output.py / roundtrip.py
 ├── examples/roundtrip/    # emit harness（decode -> encode -> write，`moon run`）
 └── .github/workflows/     # ci.yml（§19：fmt/check/test/coverage/fixture/round-trip）
@@ -138,7 +144,7 @@ moon-npy/
 
 ```bash
 moon check --target native                 # 类型检查
-moon test --target native                  # 65 单元测试
+moon test --target native                  # 85 单元测试
 moon test --target native --enable-coverage; moon coverage report -f summary   # 覆盖率
 python interoperability/generate_fixtures.py --check   # fixture 未漂移
 python interoperability/roundtrip.py       # 26 fixture 字节级 round-trip
@@ -150,8 +156,9 @@ python interoperability/roundtrip.py       # 26 fixture 字节级 round-trip
 
 [`.github/workflows/ci.yml`](.github/workflows/ci.yml)（§19）在 `ubuntu-latest` 上 pin
 MoonBit `0.1.20260827+d0aaa07` / NumPy `2.3.4` / Python `3.14`，依次跑：`moon fmt`（无 diff）
-→ `moon check` → `moon test` → coverage → fixture `--check` → `roundtrip.py`（26 fixture
-emit + verify + byte-exact）。README 展示的例子即 CI 实际运行的例子（§19 铁律）。
+→ `moon check` → `moon test` → coverage（**强制阈值门禁**：core parser ≥90% / overall ≥80%，未达
+即失败）→ fixture `--check` → `roundtrip.py`（26 fixture emit + verify + byte-exact）→ CLI 冒烟
+（inspect / validate + 退出码 0/1/2）。README 展示的例子即 CI 实际运行的例子（§19 铁律）。
 
 ## License
 

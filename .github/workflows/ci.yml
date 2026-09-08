@@ -83,13 +83,33 @@ jobs:
       - name: moon test
         run: moon test --target native
 
-      # Coverage report (§19 "+coverage"). Non-blocking: the authoritative test
-      # gate above must stay green even if native coverage tooling hiccups.
-      - name: Coverage summary (non-blocking)
-        continue-on-error: true
+      # Coverage gate (§14 / §19 "+coverage"): report the per-file summary AND
+      # enforce the two plan thresholds -- core parser (format+lexer+parser) >= 90%
+      # and project overall >= 80%. A file absent from `-f summary` is 100%
+      # covered, so summing only the listed core files is a conservative lower
+      # bound (folding a 100% file into an aggregate can only raise it). The
+      # default `bash -e` aborts if any moon step fails; the awk gate exits
+      # non-zero if either threshold slips, so this step is now blocking.
+      - name: Coverage gate (report + enforce thresholds)
         run: |
           moon test --target native --enable-coverage
-          moon coverage report -f summary
+          moon coverage analyze
+          moon coverage report -f summary > coverage-summary.txt
+          cat coverage-summary.txt
+          awk '
+            function pct(c, t) { return (t == 0) ? 100.0 : (c * 100.0 / t) }
+            /^Total:/ { split($2, a, "/"); oc = a[1] + 0; ot = a[2] + 0; seen = 1 }
+            /(format|lexer|parser)\.mbt:/ { split($2, a, "/"); cc += a[1]; ct += a[2] }
+            END {
+              if (!seen) { print "FAIL: no Total line in coverage summary"; exit 1 }
+              core = pct(cc, ct); overall = pct(oc, ot)
+              printf "core parser (format+lexer+parser): %d/%d = %.1f%%  [threshold 90%%]\n", cc, ct, core
+              printf "project overall:                   %d/%d = %.1f%%  [threshold 80%%]\n", oc, ot, overall
+              if (core < 90) { print "FAIL: core parser coverage below 90%"; exit 1 }
+              if (overall < 80) { print "FAIL: overall coverage below 80%"; exit 1 }
+              print "PASS: both coverage thresholds met"
+            }
+          ' coverage-summary.txt
 
       # Fixture drift guard: committed .npy + expected.json still match the Oracle.
       - name: Verify NumPy fixtures (no drift)
