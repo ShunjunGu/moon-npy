@@ -28,9 +28,15 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  # MoonBit uses date-based versions: 0.1.<date>+<commit>, matching
-  # `moon version` = 0.1.20260827 (d0aaa07 2026-08-27) in AGENTS.md §0.
-  MOONBIT_VERSION: "0.1.20260827+d0aaa07"
+  # The install CDN (cli.moonbitlang.com/binaries/<version>/) keys on the
+  # `moonc -v` semver, NOT the `moon version` date string. Verified against the
+  # CDN: only 0.10.11+6ff76a5f9 (and the latest/nightly aliases) resolve 200;
+  # the date-form 0.1.20260827+d0aaa07 returns 403 (it is a display-only
+  # string, never a CDN path). Both binaries/ and cores/ resolve for this pin.
+  # This is the exact local toolchain that produced tests/fixtures/expected.json:
+  #   moon version -> 0.1.20260827 (d0aaa07 2026-08-27)   [AGENTS.md §0]
+  #   moonc -v     -> v0.10.11+6ff76a5f9 (2026-08-28)     [CDN pin below]
+  MOONBIT_VERSION: "0.10.11+6ff76a5f9"
   PYTHON_VERSION: "3.14"
   NUMPY_VERSION: "2.3.4"
 
@@ -65,6 +71,7 @@ jobs:
       - name: Record toolchain versions
         run: |
           moon version
+          moonc -v
           python --version
           python -c "import numpy; print('numpy', numpy.__version__)"
 
