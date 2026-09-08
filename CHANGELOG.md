@@ -10,6 +10,27 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **字节级双向 round-trip（M4）** — 打通 `NumPy → MoonBit → NumPy` 完整链路，第一阶段
+  硬目标达成（计划 §23）：
+  - `examples/roundtrip/` — 可执行 emit harness：读 `.npy` → `decode` → `encode` → 落盘
+    （`moon run examples/roundtrip --target native -- <in> <out>`）。
+  - `interoperability/roundtrip.py` — `expected.json` 驱动的跨语言 driver：逐 fixture
+    emit + verify，聚合 `[PASS]/[FAIL]`，任一失败退出 1。当前 **26/26 字节级通过**。
+  - `.github/workflows/ci.yml` — §19 CI：pin MoonBit `0.1.20260827+d0aaa07` / NumPy
+    `2.3.4` / Python `3.14`；fmt → check → test → coverage → fixture `--check` →
+    round-trip 全 26 fixture。
+- **NPY Writer（M3 `afb9da8`）** — `src/writer/`：`encode(NpyArray) -> Result[Bytes, NpyError]`，
+  re-serialize Reader 产物，输出与 `np.save` **逐字节一致**（64 字节对齐、空格填充、
+  `\n` 收尾）；已验证至 300 KB payload。
+- **dtype codec + NPY Reader（M2 `a7d9aa3`）** — `src/dtype/`、`src/reader/`：
+  `decode(Bytes) -> Result[NpyArray, NpyError]`，覆盖全 11 种 primitive numeric dtype
+  （bool / i1–i8 / u1–u8 / f4 / f8）、`<` / `>` / `|` 字节序、N-D shape（0-d scalar、3-D）、
+  C / Fortran order。
+- **NPY header 解析（M1 `8d8f46f`）** — `src/header/`：magic / version / header-len
+  （v1 `uint16`、v2/v3 `uint32`）/ Python-literal dict（`descr` / `fortran_order` /
+  `shape`）的 lexer + parser。
+- **格式与错误基础层** — `src/format/`（`\x93NUMPY` magic、版本常量）、`src/error/`
+  （`enum NpyError` + `Result`，12 分支）。
 - `AGENTS.md` — M0 验证 gate（2026-09-07）实测固化的 MoonBit 工具链事实与项目约定
   （MoonBit `0.1.20260827`；错误范式 / Bytes / 位宽 / Float reinterpret / native IO /
   CLI 参数 / 测试与覆盖率命令）。
@@ -17,9 +38,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   - `generate_fixtures.py` — 数据驱动 fixture 生成器，从 numpy 真实产物字节反推
     `expected.json`；确定性输出（无时间戳）；`--check` 漂移校验、`--full` §15 完整矩阵。
   - `verify_moonbit_output.py` — MoonBit Writer 产物校验（`np.load` / `array_equal` /
-    逐字节），M3/M4 阶段启用。
+    逐字节）；M4 起由 `roundtrip.py` 驱动，26 fixture 全绿。
   - `README.md` — Oracle 使用文档与 CI 集成说明。
-- P0 fixtures（`tests/fixtures/`）：float32 `(2,3)` C-order 的 NPY v1.0 / v2.0 / v3.0
-  三版 + `expected.json`；已用独立字节 dump 核验对齐计划附录 A（header_len 118/116/116、
-  data_offset 128、file 152B、`\x93NUMPY` magic、空格填充 + `\n` 收尾）。
+- fixtures（`tests/fixtures/`）：**26 个** `.npy` + `expected.json`；P0 种子集 float32
+  `(2,3)` C-order v1.0 / v2.0 / v3.0（覆盖 uint16 与 uint32 两条 header-length 解析路径），
+  加 M2 codec 定向矩阵（全 dtype × 字节序 × 小 shape × v1.0、0-d scalar、3-D、
+  Fortran-order）；均用独立字节 dump 核验对齐计划附录 A（`\x93NUMPY` magic、空格填充 +
+  `\n` 收尾、64 字节对齐）。
 - 仓库骨架：`README.md`、`LICENSE`（Apache-2.0）、`.gitignore`、`CHANGELOG.md`。

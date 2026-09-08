@@ -18,9 +18,10 @@ CI 必须 pin 以上版本，与 `../AGENTS.md`（MoonBit `0.1.20260827`）一�
 | 文件 | 作用 |
 |---|---|
 | `generate_fixtures.py` | 用 `numpy.lib.format` 生成 `.npy` fixture，并从**真实产物字节**反推 `expected.json` |
-| `verify_moonbit_output.py` | 校验 MoonBit Writer 产物（`np.load` / `array_equal` / 逐字节），M3/M4 阶段启用 |
-| `../tests/fixtures/*.npy` | 生成的 fixture（Reader 测试输入） |
-| `../tests/fixtures/expected.json` | 每个 fixture 的期望 version/descr/shape/order/header_len/data_offset/checksum/values |
+| `verify_moonbit_output.py` | 校验 MoonBit Writer 产物（`np.load` / `array_equal` / 逐字节）；单一 Oracle 真相源 |
+| `roundtrip.py` | **M4 跨语言 driver**：`expected.json` 驱动，逐 fixture `emit`（`moon run examples/roundtrip`）+ `verify`，聚合 `[PASS]/[FAIL]`，任一失败退出 1 |
+| `../tests/fixtures/*.npy` | 生成的 fixture（Reader 测试输入 + round-trip 输入） |
+| `../tests/fixtures/expected.json` | 每个 fixture 的期望 version/descr/shape/order/header_len/data_offset/checksum/values；亦是 `roundtrip.py` 的 fixture 清单来源 |
 
 ## 生成 / 校验 fixture
 
@@ -35,7 +36,7 @@ python interoperability/generate_fixtures.py --check
 python interoperability/generate_fixtures.py --full
 ```
 
-### 当前 P0 种子集
+### P0 种子集（当前 26 fixture 中的 3 个）
 
 | 文件 | version | descr | shape | header_len | data_offset | file_nbytes |
 |---|---|---|---|---|---|---|
@@ -62,10 +63,19 @@ python interoperability/generate_fixtures.py --full
 
 ## CI 集成（§19）
 
+§19 pipeline 已落地为 `../.github/workflows/ci.yml`（pin MoonBit `0.1.20260827+d0aaa07` /
+NumPy `2.3.4` / Python `3.14`）。各阶段 → 实际命令：
+
 ```text
-Generate NumPy Fixtures  → generate_fixtures.py（或 --check 断言未漂移）
-MoonBit Reads NumPy      → moon test（Reader 断言对齐 expected.json）
-MoonBit Generates NPY    → moon run（Writer 产出 out.npy）
-NumPy Reads MoonBit      → verify_moonbit_output.py out.npy --reference <fixture>
-Byte-level round-trip    → verify_moonbit_output.py out.npy --byte-exact <fixture>   # B1 回归
+MoonBit Check            → moon check --target native
+MoonBit Unit Tests       → moon test --target native（Reader/Writer 断言对齐 expected.json）
+Generate NumPy Fixtures  → generate_fixtures.py --check（断言 fixture 未漂移）
+MoonBit Reads NumPy      ┐
+MoonBit Generates NPY    ├→ roundtrip.py：逐 fixture emit（moon run examples/roundtrip → out.npy）
+NumPy Reads MoonBit      │              + verify（np.load / array_equal）
+Byte-level round-trip    ┘              + 逐字节 vs Oracle（B1 回归）；26/26 通过
 ```
+
+`roundtrip.py` 把「MoonBit 读 → 重新输出 → NumPy 校验（含逐字节）」三步合一，委托
+`verify_moonbit_output.py` 做校验，保持单一 Oracle 真相源（§19 铁律：README 展示的例子
+即 CI 实际运行的例子）。

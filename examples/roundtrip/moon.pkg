@@ -1,0 +1,8 @@
+pkgtype(kind: "executable")
+
+import {
+  "ShunjunGu/moon-npy/src/reader",
+  "ShunjunGu/moon-npy/src/writer",
+  "moonbitlang/x/fs",
+  "moonbitlang/core/env",
+}
