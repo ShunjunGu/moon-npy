@@ -419,22 +419,32 @@ pub fn render_error(e : @error.NpyError) -> String {
     @error.UnsupportedObjectArray => "UnsupportedObjectArray"
     @error.InvalidByteOrder(b) =>
       "InvalidByteOrder\nByte order marker: \{b.to_int()}"
+    // start / length are element indices, so no " bytes" suffix; group_digits
+    // tolerates the negative values this variant is meant to report.
+    @error.InvalidChunkRange(start, len) =>
+      "InvalidChunkRange\nStart: \{group_digits(start.to_int64())}\nLength: \{group_digits(len.to_int64())}"
   }
 }
 
 ///|
-// Insert a thousands separator into a non-negative integer's decimal text (§13
-// shows "3,145,728"). Digits are collected from the least significant end, a
-// comma every three, then read back in order.
+// Insert a thousands separator into an integer's decimal text (§13 shows
+// "3,145,728"). Digits are collected from the least significant end, a comma
+// every three, then read back in order. A leading '-' is kept outside the
+// separators: InvalidChunkRange (S4) legitimately reports negative bounds, and
+// grouping the sign as if it were a digit misplaces the first comma.
 fn group_digits(n : Int64) -> String {
   let s = "\{n}"
   let len = s.length()
-  if len <= 3 {
+  let digits_start = match s.get_char(0) {
+    Some('-') => 1
+    _ => 0
+  }
+  if len - digits_start <= 3 {
     return s
   }
   let rev : Array[Char] = []
   let mut k = 0
-  for i = len - 1; i >= 0; i = i - 1 {
+  for i = len - 1; i >= digits_start; i = i - 1 {
     if k > 0 && k % 3 == 0 {
       rev.push(',')
     }
@@ -444,7 +454,7 @@ fn group_digits(n : Int64) -> String {
     }
     k = k + 1
   }
-  let mut out = ""
+  let mut out = if digits_start > 0 { "-" } else { "" }
   for j = rev.length() - 1; j >= 0; j = j - 1 {
     out = "\{out}\{rev[j]}"
   }

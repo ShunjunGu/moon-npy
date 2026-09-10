@@ -364,7 +364,7 @@ test "human_size" {
   assert_eq(@cli.human_size(1073741824L), "1.00 GiB")
 }
 
-// ---- render_error: all 12 NpyError variants (§12 error model, §13 layout) ----
+// ---- render_error: all 13 NpyError variants (§12 error model, §13 layout) ----
 
 ///|
 test "render_error_bare_variants" {
@@ -416,5 +416,25 @@ test "render_error_data_length_mismatch" {
   assert_eq(
     @cli.render_error(@error.DataLengthMismatch(3145728L, 3145216L)),
     "DataLengthMismatch\nExpected: 3,145,728 bytes\nActual:   3,145,216 bytes",
+  )
+}
+
+///|
+test "render_error_invalid_chunk_range" {
+  // S4: the (start, length) payload is echoed with the same thousands grouping as
+  // the byte counts above, but without a " bytes" suffix -- these are elements.
+  assert_eq(
+    @cli.render_error(@error.InvalidChunkRange(4, 3)),
+    "InvalidChunkRange\nStart: 4\nLength: 3",
+  )
+  assert_eq(
+    @cli.render_error(@error.InvalidChunkRange(1000, 2000)),
+    "InvalidChunkRange\nStart: 1,000\nLength: 2,000",
+  )
+  // Negative bounds are the whole point of this variant; the sign must sit
+  // outside the separators, not absorb a comma.
+  assert_eq(
+    @cli.render_error(@error.InvalidChunkRange(-1000, -100000)),
+    "InvalidChunkRange\nStart: -1,000\nLength: -100,000",
   )
 }
