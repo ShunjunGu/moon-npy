@@ -36,7 +36,7 @@ python interoperability/generate_fixtures.py --check
 python interoperability/generate_fixtures.py --full
 ```
 
-### P0 种子集（当前 26 fixture 中的 3 个）
+### P0 种子集（当前 31 fixture 中的 3 个）
 
 | 文件 | version | descr | shape | header_len | data_offset | file_nbytes |
 |---|---|---|---|---|---|---|
@@ -55,7 +55,9 @@ python interoperability/generate_fixtures.py --full
 - **确定性**：不嵌入时间戳；相同 NumPy 版本重跑 → 字节一致的 `.npy` 与 `expected.json`。
   CI 可用「重生成 + `git diff` 为空」或 `--check` 断言 fixture 未漂移。
 - **非平凡值**：元素用 `arange` 铺 `0..n-1`（bool 用奇偶交替），刻意**不用全 0**——
-  全 0 会掩盖字节序 / 偏移类 bug（读错也「相等」）。
+  全 0 会掩盖字节序 / 偏移类 bug（读错也「相等」）。complex 取 `im = 2 * re`（实部虚部不等，
+  re/im 交错读取会立刻失败）；`expected.json` 里的 complex 以 `[re, im]` 二元组表示
+  （`json.dumps` 不能直接序列化 Python `complex`）。
 - **生成方式区分版本**（§8.4 / 附录 A.4）：v1.0 用 `np.save`（对简单数组恒产出 1.0）；
   v2.0/v3.0 **必须**用 `write_array(f, arr, version=(2,0)/(3,0))`，`np.save` 无法生成。
 - **安全边界**：`verify_moonbit_output.py` 用 `allow_pickle=False`，拒绝 object/pickle
@@ -73,7 +75,7 @@ Generate NumPy Fixtures  → generate_fixtures.py --check（断言 fixture 未�
 MoonBit Reads NumPy      ┐
 MoonBit Generates NPY    ├→ roundtrip.py：逐 fixture emit（moon run examples/roundtrip → out.npy）
 NumPy Reads MoonBit      │              + verify（np.load / array_equal）
-Byte-level round-trip    ┘              + 逐字节 vs Oracle（B1 回归）；26/26 通过
+Byte-level round-trip    ┘              + 逐字节 vs Oracle（B1 回归）；31/31 通过
 ```
 
 `roundtrip.py` 把「MoonBit 读 → 重新输出 → NumPy 校验（含逐字节）」三步合一，委托

@@ -36,27 +36,29 @@ interop layer*, **not** a re-implementation of NumPy.
 | 阶段 | 状态 |
 |---|---|
 | **M0** 工具链验证 gate（附录 B.2 全 7 项） | ✅ **GO** — 见 [`AGENTS.md`](AGENTS.md) |
-| NumPy 兼容性 Oracle + fixtures（26） | ✅ 就位（`interoperability/`, `tests/fixtures/`） |
+| NumPy 兼容性 Oracle + fixtures（31） | ✅ 就位（`interoperability/`, `tests/fixtures/`） |
 | **M1** NPY header 解析（v1/v2/v3） | ✅ `src/header/` |
 | **M2** dtype codec + Reader（decode → 类型化数组） | ✅ `src/dtype/`, `src/reader/` |
 | **M3** Writer（encode → 字节级对齐 `np.save`） | ✅ `src/writer/` |
-| **M4** `NumPy → MoonBit → NumPy` 字节级双向 round-trip + CI | ✅ **26/26**（第一阶段硬目标达成，§23） |
+| **M4** `NumPy → MoonBit → NumPy` 字节级双向 round-trip + CI | ✅ **31/31**（第一阶段硬目标达成，§23） |
 | **CLI**（`inspect` / `validate`） | ✅ `src/cli/`, `cmd/main/`（退出码 0/1/2 `$LASTEXITCODE` 实测） |
-| **M5** 边缘 / Fuzz / 覆盖率（§18 totality、§14 阈值） | ✅ 89 测试全绿；core parser **98.5%**、overall **91.3%**（CI 强制门禁） |
+| **M5** 边缘 / Fuzz / 覆盖率（§18 totality、§14 阈值） | ✅ 99 测试全绿；core parser **98.5%**、overall **91.6%**（CI 强制门禁） |
+| **S1** complex64 / complex128 读取（v0.2.0 Stretch，§6） | ✅ `src/dtype/`（`Complex` + `read_c64` / `read_c16`）、`src/reader/`（`to_c64` / `to_c16`） |
 
 Pinned toolchain（CI 复现基准）：**MoonBit `0.1.20260827`** · **NumPy `2.3.4`** · Python `3.14`。
-89 单元测试（`moon test --target native`）+ 26 fixture 跨语言 round-trip 全绿；覆盖率 core parser
-（format+lexer+parser）**98.5%**、项目 overall **91.3%**（CI 强制阈值 ≥90% / ≥80%）。
+99 单元测试（`moon test --target native`）+ 31 fixture 跨语言 round-trip 全绿；覆盖率 core parser
+（format+lexer+parser）**98.5%**、项目 overall **91.6%**（CI 强制阈值 ≥90% / ≥80%）。
 
 ## Features
 
 - ✅ **Reader** — NPY v1.0 / v2.0 / v3.0；primitive numeric dtype（bool / i1–i8 / u1–u8 /
-  f4 / f8）；N-D shape（含 0-d scalar、3-D）；C / Fortran order；endianness（`<` / `>` / `|`，
-  Reader 另接受 `=`）。结构化错误（`enum NpyError` + `Result`），损坏文件拒绝得也对。
+  f4 / f8）+ complex（c8 / c16，v0.2.0 S1 起）；N-D shape（含 0-d scalar、3-D）；C / Fortran
+  order；endianness（`<` / `>` / `|`，Reader 另接受 `=`）。结构化错误（`enum NpyError` +
+  `Result`），损坏文件拒绝得也对。
 - ✅ **Writer** — 产物与 `np.save` / `numpy.lib.format.write_array` **逐字节一致**（含 64
   字节对齐、空格填充、`\n` 收尾）；已验证至 300 KB payload。
 - ✅ **Interop** — `NumPy → MoonBit → NumPy` 双向 round-trip，`np.array_equal` + 逐字节校验，
-  26 fixture 全通过。
+  31 fixture 全通过。
 - ✅ **CLI** — `inspect <file.npy>`（元数据表）/ `validate <file.npy>`（`✓`/`✗` 判定）；退出码
   valid→0 / 非法文件→1 / 打不开或用法错→2（§13）。纯逻辑在 `src/cli/`，`cmd/main/` 只做 IO。
 - ✅ **鲁棒性（M5）** — 边缘用例（0-d / N-D、Fortran-order、big-endian、`=` native、空数组、全
@@ -114,9 +116,17 @@ match @reader.decode(bytes) {
 ```
 
 `decode` 校验 magic / version / header / dtype / shape 溢出 / payload 长度后切出 payload；
-元素解码是**惰性**的——`to_bool` / `to_i8`…`to_i64` / `to_u8`…`to_u64` / `to_f32` / `to_f64`
-按需把 payload 解成对应 MoonBit 类型的扁平数组（storage order）。只需元数据不解元素时用
+元素解码是**惰性**的——`to_bool` / `to_i8`…`to_i64` / `to_u8`…`to_u64` / `to_f32` / `to_f64` / `to_c64`
+/ `to_c16` 按需把 payload 解成对应 MoonBit 类型的扁平数组（storage order）。只需元数据不解元素时用
 `validate`（返回 `NpyMeta`）。写回：`@writer.encode(arr)` 得到与 `np.save` 逐字节一致的 `Bytes`。
+
+complex 两种宽度共用一个 `Complex` 元素结构，分量统一为 64 位 `Double`（`complex64` 的 f32 分量
+无损加宽）：
+
+```moonbit
+let z : Array[@dtype.Complex] = arr.to_c64().unwrap()
+assert_eq(z[1], @dtype.Complex::{ re: 1.0, im: 2.0 }) // tests/fixtures/c8_4_c_le_v1.npy
+```
 
 ## Round-trip demo（§29）
 
@@ -136,10 +146,10 @@ python interoperability/verify_moonbit_output.py embeddings-moonbit.npy \
 #    -> [verify] PASS
 ```
 
-批量对全部 26 fixture 跑同一链路（**CI 实际执行的命令**）：
+批量对全部 31 fixture 跑同一链路（**CI 实际执行的命令**）：
 
 ```bash
-python interoperability/roundtrip.py        # emit(moon run) + verify(numpy) 聚合，26/26
+python interoperability/roundtrip.py        # emit(moon run) + verify(numpy) 聚合，31/31
 ```
 
 ## Compatibility Matrix
@@ -149,19 +159,20 @@ python interoperability/roundtrip.py        # emit(moon run) + verify(numpy) 聚
 | 维度 | 支持取值 | 说明 |
 |---|---|---|
 | **version** | 1.0 / 2.0 / 3.0 | v1 用 uint16 header-length，v2/v3 用 uint32 |
-| **dtype** | `bool` · `i1 i2 i4 i8` · `u1 u2 u4 u8` · `f4 f8` | 11 种 primitive numeric；各有 `to_*` accessor |
+| **dtype** | `bool` · `i1 i2 i4 i8` · `u1 u2 u4 u8` · `f4 f8` · `c8 c16` | 13 种：11 种 primitive numeric + 2 种 complex（`c8` / `c16` 自 v0.2.0 S1）；各有 `to_*` accessor |
 | **shape** | 0-d `()` · 1-d · N-d（实测含 `(2,3)`、`(2,2,2)`） | 0-d scalar → `element_count == 1` |
 | **memory order** | C / Fortran | `fortran_order` 作 metadata；accessor 返回 storage-order 扁平数组 |
 | **byte order** | `<` little · `>` big · `\|` N/A · `=` native | `=` native 读作 little-endian（MoonBit 各后端均小端，平台假设） |
 
 **不支持**（识别后返回结构化 `UnsupportedDType` / `UnsupportedObjectArray`，而非静默出错）：
-object（`\|O`，**主动拒绝**，见 Security）、complex（`c`）、half / longdouble（`e`/`g`）、
+object（`\|O`，**主动拒绝**，见 Security）、half / longdouble（`e`/`g`）、complex256（`C`）、
 bytes / str（`S`/`U`）、void / structured（`V`）、datetime / timedelta（`M`/`m`）。NPZ、
 GGUF / SafeTensors / Parquet 不在范围内（见 Limitations）。
 
-当前入库 fixture 集（**26 个**）：float32 `(2,3)` C-order × v1.0 / v2.0 / v3.0（覆盖 uint16 与
-uint32 两条 header-length 解析路径）+ 全 dtype × 字节序定向矩阵 + 0-d scalar + 3-D +
-Fortran-order。fixture 由 `interoperability/generate_fixtures.py` 用 `numpy.lib.format` 生成，
+当前入库 fixture 集（**31 个**）：float32 `(2,3)` C-order × v1.0 / v2.0 / v3.0（覆盖 uint16 与
+uint32 两条 header-length 解析路径）+ 全 dtype × 字节序定向矩阵（含 `c8` / `c16` 的 LE / BE 与 2-D
+`c8`，v0.2.0 S1）+ 0-d scalar + 3-D + Fortran-order。fixture 由
+`interoperability/generate_fixtures.py` 用 `numpy.lib.format` 生成，
 并从真实产物字节反推 [`tests/fixtures/expected.json`](tests/fixtures/expected.json)（version /
 descr / shape / order / header_len / data_offset / checksum / values）；MoonBit 测试断言对齐它。
 详见 [`interoperability/README.md`](interoperability/README.md)。
@@ -219,11 +230,15 @@ pub fn has_magic(data : Bytes) -> Bool
 pub struct NpyHeader { descr : String; shape : Array[UInt64]; fortran_order : Bool }
 
 // src/dtype — descr → (DType, ByteOrder) + itemsize + 逐元素 codec
-pub(all) enum DType { Bool; Int8; Int16; Int32; Int64; UInt8; UInt16; UInt32; UInt64; Float32; Float64 }
+pub(all) enum DType { Bool; Int8; Int16; Int32; Int64; UInt8; UInt16; UInt32; UInt64; Float32;
+                     Float64; Complex64; Complex128 }
 pub(all) enum ByteOrder { Little; Big; NotApplicable; Native }
 pub fn parse_dtype(descr : String) -> Result[(DType, ByteOrder), NpyError]
 pub fn itemsize(dt : DType) -> Int
 pub fn name(dt : DType) -> String
+pub(all) struct Complex { re : Double; im : Double } // c8 / c16 的元素类型，分量统一 Double
+pub fn read_c64(data : Bytes, off : Int, order : ByteOrder) -> Complex // 2 x f32 -> Double
+pub fn read_c16(data : Bytes, off : Int, order : ByteOrder) -> Complex // 2 x f64
 
 // src/reader — 校验 / 解码 / 类型化访问
 pub struct NpyMeta { version; header; dtype; byte_order; element_count : Int64; data_offset : Int64; payload_len : Int64 }
@@ -231,7 +246,9 @@ pub struct NpyArray { version; header; dtype; byte_order; element_count : Int64;
 pub fn validate(data : Bytes) -> Result[NpyMeta, NpyError]
 pub fn decode(data : Bytes) -> Result[NpyArray, NpyError]
 pub fn NpyArray::to_f32(self) -> Result[Array[Float], NpyError]   // 另有 to_bool / to_i8…to_i64 /
-pub fn NpyArray::to_f64(self) -> Result[Array[Double], NpyError]  // to_u8…to_u64（共 11 个 accessor）
+pub fn NpyArray::to_f64(self) -> Result[Array[Double], NpyError]  // to_u8…to_u64（共 13 个 accessor）
+pub fn NpyArray::to_c64(self) -> Result[Array[Complex], NpyError] // complex64（v0.2.0 S1）
+pub fn NpyArray::to_c16(self) -> Result[Array[Complex], NpyError] // complex128（v0.2.0 S1）
 
 // src/writer — 序列化回字节级对齐 np.save 的 NPY
 pub fn encode(array : NpyArray) -> Result[Bytes, NpyError]
@@ -254,7 +271,8 @@ pub(all) enum NpyError {
 
 整数 accessor 的 MoonBit 类型映射（受 32 位 `Int` 约束，§9.2）：`i8/i16/i32 → Array[Int]`、
 `i64 → Array[Int64]`、`u8/u16 → Array[Int]`、`u32 → Array[Int64]`（`0..2³²-1` 装不进 32 位 `Int`，
-加宽）、`u64 → Array[UInt64]`。
+加宽）、`u64 → Array[UInt64]`。complex accessor 返回 `Array[Complex]`，两种宽度同一元素类型，
+由 `arr.dtype`（`Complex64` / `Complex128`）区分字节来自 2 × f32 还是 2 × f64。
 
 ## Architecture
 
@@ -299,7 +317,7 @@ moon-npy/
 │   ├── error/             # enum NpyError + Result
 │   └── cli/               # inspect / validate 纯逻辑（parse_args + 渲染，无 IO）
 ├── cmd/main/              # CLI 可执行薄壳（@fs 读字节 + extern "c" exit 设退出码）
-├── tests/                 # *_test.mbt（89，含 edge / fuzz / security / property）+ fixtures/（*.npy + expected.json）
+├── tests/                 # *_test.mbt（99，含 edge / fuzz / security / property）+ fixtures/（*.npy + expected.json）
 ├── interoperability/      # generate_fixtures.py / verify_moonbit_output.py / roundtrip.py
 ├── examples/roundtrip/    # emit harness（decode -> encode -> write，`moon run`）
 └── .github/workflows/     # ci.yml（§19：fmt/check/test/coverage/fixture/round-trip）
@@ -307,15 +325,16 @@ moon-npy/
 
 ## Limitations
 
-范围控制是本项目的第一原则（§5「明确不做什么」）。v0.1.0 **有意不实现**：
+范围控制是本项目的第一原则（§5「明确不做什么」）。v0.1.0 有意不实现下列能力，v0.2.0 仅新增
+complex64 / complex128 读取，未扩大其余范围：
 
 - **不是 NumPy**：无线性代数 / FFT / 广播 / 矩阵运算，无 Tensor framework / 自动微分 /
   模型加载（PyTorch 等）。moon-npy 只做 `.npy` 二进制**序列化 / 反序列化**。
 - **不做其他格式**：GGUF / SafeTensors / Parquet / **NPZ**（NPZ = ZIP 容器 + 多 NPY，属
   Stretch，不作比赛核心交付）。
-- **dtype 范围**：仅 11 种 primitive numeric（见 Compatibility Matrix）。**object dtype 主动
-  拒绝**；complex / half / longdouble / bytes / str / void / structured / datetime / timedelta
-  识别后返回 `UnsupportedDType`（结构化，非崩溃）。
+- **dtype 范围**：13 个 dtype —— 11 种 primitive numeric + complex64 / complex128（见
+  Compatibility Matrix）。**object dtype 主动拒绝**；half / longdouble / complex256 / bytes /
+  str / void / structured / datetime / timedelta 识别后返回 `UnsupportedDType`（结构化，非崩溃）。
 - **不自动 reshape**：accessor 返回 storage-order **扁平** `Array[T]` + `shape` / `fortran_order`
   metadata，由消费方自行 reshape 成 N-D（保持核心小而完整）。
 - **encode 的前置条件**：`writer.encode` 只重序列化 `reader.decode` 得到的 `NpyArray`
@@ -370,21 +389,21 @@ Mechanics backing those claims (all exercised by `moon test`):
 ```bash
 moon fmt                                   # 格式化（CI 用 git diff --exit-code 强制无改动）
 moon check --target native                 # 类型检查
-moon test --target native                  # 89 单元测试
+moon test --target native                  # 99 单元测试
 ```
 
 **覆盖率**（CI 强制阈值门禁：core parser ≥90% / overall ≥80%，未达即失败）：
 
 ```bash
 moon test --target native --enable-coverage; moon coverage analyze
-moon coverage report -f summary            # 当前 core parser 98.5%、overall 91.3%
+moon coverage report -f summary            # 当前 core parser 98.5%、overall 91.6%
 ```
 
 **跨语言互操作**（需 NumPy / Python）：
 
 ```bash
 python interoperability/generate_fixtures.py --check   # fixture 未漂移
-python interoperability/roundtrip.py                   # 26 fixture 字节级 round-trip
+python interoperability/roundtrip.py                   # 31 fixture 字节级 round-trip
 ```
 
 **约定**：核心层用 `enum NpyError` + 内建 `Result`（不用异常表达失败）；长度 / 偏移一律 `Int64`
@@ -400,7 +419,7 @@ python interoperability/roundtrip.py                   # 26 fixture 字节级 ro
 [`.github/workflows/ci.yml`](.github/workflows/ci.yml)（§19）在 `ubuntu-latest` 上 pin
 MoonBit `0.1.20260827+d0aaa07` / NumPy `2.3.4` / Python `3.14`，依次跑：`moon fmt`（无 diff）
 → `moon check` → `moon test` → coverage（**强制阈值门禁**：core parser ≥90% / overall ≥80%，未达
-即失败）→ fixture `--check` → `roundtrip.py`（26 fixture emit + verify + byte-exact）→ CLI 冒烟
+即失败）→ fixture `--check` → `roundtrip.py`（31 fixture emit + verify + byte-exact）→ CLI 冒烟
 （inspect / validate + 退出码 0/1/2）。README 展示的例子即 CI 实际运行的例子（§19 铁律）。
 
 ## License

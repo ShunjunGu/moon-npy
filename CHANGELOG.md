@@ -16,9 +16,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `UnsupportedObjectArray`；void（`|V8`）经 known-unsupported-kind 表返回 `UnsupportedDType`。
   不新增产品代码，仅将 `dtype.mbt` 已有的前置拒绝固化为回归资产（`edge_test.mbt` 的标量用例
   扩展为全矩阵）。单元测试 85 → **88**。
-- **语言内 round-trip 字节恒等性质（创新包 B1）** — `tests/property_test.mbt`：对全部 26 个
-  字节级 Oracle fixture 断言 `decode → encode` **逐字节恒等**，且重解码后 dtype / shape /
-  `element_count` 不变。字节级兼容保证从此**不依赖 Python 环境**也在 `moon test` 中被强制
+- **语言内 round-trip 字节恒等性质（创新包 B1）** — `tests/property_test.mbt`：对全部字节级
+  Oracle fixture（当前 31 个，名单以 `oracle_fixture_names()` 为准）断言 `decode → encode`
+  **逐字节恒等**，且重解码后 dtype / shape / `element_count` 不变。字节级兼容保证从此
+  **不依赖 Python 环境**也在 `moon test` 中被强制
   （与 `interoperability/roundtrip.py` 的 NumPy 侧全量校验互补，非替代）。fixture 名单收敛到
   `tests/npy_test.mbt` 的共享 `oracle_fixture_names()`（单一事实源，`fuzz_test.mbt` 改为引用）。
   单元测试 88 → **89**。
@@ -27,6 +28,32 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   变体 + 指向 `tests/security_test.mbt`），并诚实限定边界（不宣称通用沙箱，只声明此类攻击面在
   本库不存在）；兼容性矩阵中「见 Security」的引用仍成立。覆盖率与四门门禁不变（
   core parser 98.5%、overall 91.3%，同 v0.1.0）。
+- **complex64 / complex128 读取（v0.2.0 Stretch S1）** — `src/dtype/`：`DType` 新增
+  `Complex64` / `Complex128` 变体（descr `<c8` / `>c8` / `<c16` / `>c16`，`itemsize` 8 / 16，
+  `name` 为 NumPy 的 `complex64` / `complex128`），元素类型是**单一结构**
+  `pub(all) struct Complex { re : Double; im : Double }`（两种宽度共用：MoonBit `Double` 为
+  64 位，对 complex128 分量精确、对 complex64 的 f32 分量无损加宽），codec `read_c64` /
+  `read_c16` 按 2 × f32 / 2 × f64 的 re,im 交错读取。`kind_size_to_dtype` 新增 `c` 分支，
+  `is_known_unsupported_kind` 从此只列入未解码的 kind（大写 `C` = complex256 仍在列）。
+  `src/reader/`：`to_c64` / `to_c16` 直接复用既有泛型 `flat(arr, want, read)`，dtype 校验 /
+  payload 长度 / storage-order（Q2）与其余 accessor 同一条代码路径，无新增边界逻辑；
+  accessor 11 → **13**。写入侧**零改动**：`writer.encode` 按 `descr_code`（`c8` / `c16`）重建
+  header、payload 原样透传，跨语言 round-trip 对新 fixture 直接全绿。
+- **complex Oracle fixtures（S1 / X2）** — `tests/fixtures/` 新增 5 个 NumPy 2.3.4 真实产物：
+  `c8` / `c16` 各一对 LE + BE 的 1-D，加一个 2-D `(2,3)` `c8`（shape 元数据与扁平长度同时
+  校验），fixture **26 → 31**。`generate_fixtures.py` 的 `make_values` 对 complex 取
+  `im = 2 * re`（实部虚部故意不等：任何 re/im 交换读取在 Oracle 对比下失败，而非静默通过）；
+  `expected.json` 用 `jsonable()` 把 complex 表示为 `[re, im]` 二元组（`json.dumps` 无法直接
+  序列化 Python `complex`）。fixture 名单收敛点 `oracle_fixture_names()` 同步到 31。单元测试
+  89 → **99**；覆盖率 core parser **98.5%**（129/131，不变）、overall **91.3% → 91.6%**
+  （557/610 → 579/632，新增代码路径均被覆盖）；`README.md` / `README_CN.md` 的兼容性矩阵、
+  库 API、fixture 计数同步（不支持清单里 complex 移出、改列 complex256）。
+
+### Changed
+
+- `.github/workflows/ci.yml` — round-trip 步骤名去掉写死的 fixture 计数（原 `(26 fixtures)`）：
+  `tests/fixtures/expected.json` 是唯一名单，`roundtrip.py` 自身打印 `N/N passed`，在步骤名里
+  重复一个数字只会每次加 fixture 时静默过期（本次 26 → 31 即为一例）。
 
 ## [v0.1.0] - 2026-09-08
 
