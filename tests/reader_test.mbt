@@ -311,3 +311,23 @@ test "chunk_rejects_wrong_dtype" {
     _ => assert_true(false)
   }
 }
+
+///|
+test "chunk_row_slice_2d" {
+  // Row reads driven by the shape metadata, not by hardcoded offsets: in
+  // C-order, row k of a (rows, cols) array starts at element k * cols -- the
+  // same expression a 100 x 768 embeddings file needs (row k ==
+  // to_f32_chunk(k * 768, 768)). f4_2x3 holds 0..5 in storage order, so row k,
+  // column j is k * 3 + j.
+  let a = decode_fixture("f4_2x3_c_le_v1.npy")
+  let rows = a.header.shape[0].to_int()
+  let cols = a.header.shape[1].to_int()
+  assert_eq([rows, cols], [2, 3])
+  for row = 0; row < rows; row = row + 1 {
+    let got = a.to_f32_chunk(row * cols, cols).unwrap()
+    assert_eq(got.length(), cols)
+    for col = 0; col < cols; col = col + 1 {
+      assert_eq(got[col].to_double(), (row * cols + col).to_double())
+    }
+  }
+}

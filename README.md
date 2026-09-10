@@ -42,13 +42,14 @@ interop layer*, **not** a re-implementation of NumPy.
 | **M3** Writer（encode → 字节级对齐 `np.save`） | ✅ `src/writer/` |
 | **M4** `NumPy → MoonBit → NumPy` 字节级双向 round-trip + CI | ✅ **31/31**（第一阶段硬目标达成，§23） |
 | **CLI**（`inspect` / `validate` / `dump`） | ✅ `src/cli/`, `cmd/main/`（退出码 0/1/2 `$LASTEXITCODE` 实测） |
-| **M5** 边缘 / Fuzz / 覆盖率（§18 totality、§14 阈值） | ✅ 112 测试全绿；core parser **98.5%**、overall **91.3%**（CI 强制门禁） |
+| **M5** 边缘 / Fuzz / 覆盖率（§18 totality、§14 阈值） | ✅ 118 测试全绿；core parser **98.5%**、overall **91.4%**（CI 强制门禁） |
 | **S1** complex64 / complex128 读取（v0.2.0 Stretch，§6） | ✅ `src/dtype/`（`Complex` + `read_c64` / `read_c16`）、`src/reader/`（`to_c64` / `to_c16`） |
 | **S5** CLI `dump [--limit N]`（v0.2.0 Stretch，§6） | ✅ `src/cli/`（`run_dump`，13 个 dtype 全覆盖）、`cmd/main/`（CI 冒烟实测） |
+| **S4** storage-order 分块读取（v0.2.0 Stretch，§6） | ✅ `src/reader/`（`flat_range` + `to_f32_chunk` / `to_f64_chunk`）、`src/error/` + `src/cli/`（第 13 变体 `InvalidChunkRange` 及其渲染） |
 
 Pinned toolchain（CI 复现基准）：**MoonBit `0.1.20260827`** · **NumPy `2.3.4`** · Python `3.14`。
-112 单元测试（`moon test --target native`）+ 31 fixture 跨语言 round-trip 全绿；覆盖率 core parser
-（format+lexer+parser）**98.5%**、项目 overall **91.3%**（CI 强制阈值 ≥90% / ≥80%）。
+118 个单元测试（`moon test --target native`）+ 31 fixture 跨语言 round-trip 全绿；覆盖率 core parser
+（format+lexer+parser）**98.5%**、项目 overall **91.4%**（CI 强制阈值 ≥90% / ≥80%）。
 
 ## Features
 
@@ -56,6 +57,10 @@ Pinned toolchain（CI 复现基准）：**MoonBit `0.1.20260827`** · **NumPy `2
   f4 / f8）+ complex（c8 / c16，v0.2.0 S1 起）；N-D shape（含 0-d scalar、3-D）；C / Fortran
   order；endianness（`<` / `>` / `|`，Reader 另接受 `=`）。结构化错误（`enum NpyError` +
   `Result`），损坏文件拒绝得也对。
+- ✅ **分块读取（S4）** — `to_f32_chunk(start, len)` / `to_f64_chunk(start, len)` 按 storage order
+  只解码一个窗口（行读取场景）；越界或负值返回第 13 个结构化错误 `InvalidChunkRange(start, len)`，
+  绝不 panic。省的是**输出数组**，payload 仍随 `decode` 全量驻留内存（无跨文件 I/O streaming，见
+  Limitations）。
 - ✅ **Writer** — 产物与 `np.save` / `numpy.lib.format.write_array` **逐字节一致**（含 64
   字节对齐、空格填充、`\n` 收尾）；已验证至 300 KB payload。
 - ✅ **Interop** — `NumPy → MoonBit → NumPy` 双向 round-trip，`np.array_equal` + 逐字节校验，
@@ -118,7 +123,8 @@ match @reader.decode(bytes) {
 ```
 
 `decode` 校验 magic / version / header / dtype / shape 溢出 / payload 长度后切出 payload；
-元素解码是**惰性**的——`to_bool` / `to_i8`…`to_i64` / `to_u8`…`to_u64` / `to_f32` / `to_f64` / `to_c64`
+元素解码是**惰性**的（指不调用 accessor 就不解码；payload 本身已随 `decode` 全量在内存）——
+`to_bool` / `to_i8`…`to_i64` / `to_u8`…`to_u64` / `to_f32` / `to_f64` / `to_c64`
 / `to_c16` 按需把 payload 解成对应 MoonBit 类型的扁平数组（storage order）。只需元数据不解元素时用
 `validate`（返回 `NpyMeta`）。写回：`@writer.encode(arr)` 得到与 `np.save` 逐字节一致的 `Bytes`。
 
@@ -128,6 +134,14 @@ complex 两种宽度共用一个 `Complex` 元素结构，分量统一为 64 位
 ```moonbit
 let z : Array[@dtype.Complex] = arr.to_c64().unwrap()
 assert_eq(z[1], @dtype.Complex::{ re: 1.0, im: 2.0 }) // tests/fixtures/c8_4_c_le_v1.npy
+```
+
+只取一行（S4）：C-order 下 `(rows, cols)` 的第 k 行从元素 `k * cols` 开始，所以 §29 Demo 那个
+`100×768` 的 embeddings 读第 k 行就是 `to_f32_chunk(k * 768, 768)`：
+
+```moonbit
+let row1 : Array[Float] = arr.to_f32_chunk(3, 3).unwrap() // (2,3) 的第 1 行 = 元素 [3, 6)
+assert_eq(row1.map(fn(x) { x.to_double() }), [3.0, 4.0, 5.0]) // tests/fixtures/f4_2x3_c_le_v1.npy
 ```
 
 ## Round-trip demo（§29）
@@ -242,7 +256,8 @@ NPY Dump: tests/fixtures/f4_2x3_c_le_v1.npy
 值走每个类型自己的 `to_string`，因此 **`Float` / `Double` 会省略尾随的 `.0`**——`1.0` 打印为
 `1`，complex 打印为 `(1, 2)`。`dump` 覆盖全部 13 个元素级 dtype（表驱动证据测试
 `dump_covers_all_13_dtypes` 的 pin 取自 NumPy Oracle）；它先把全量 payload 解码成内存数组
-再截断，所以 `--limit` 省的是输出行数，不是内存。
+再截断，所以 `--limit` 省的是输出行数，不是内存——要在**库侧**限制解码出的元素数量，用 S4 的
+`to_f32_chunk` / `to_f64_chunk`（`dump` 要覆盖 13 个 dtype，故仍走全量 accessor）。
 
 **退出码纪律**：valid → 0；文件非法（任一 `NpyError`）→ 1；文件打不开 / 用法错误（包括
 `--limit` 缺值或非数字）→ 2
@@ -280,9 +295,12 @@ pub struct NpyArray { version; header; dtype; byte_order; element_count : Int64;
 pub fn validate(data : Bytes) -> Result[NpyMeta, NpyError]
 pub fn decode(data : Bytes) -> Result[NpyArray, NpyError]
 pub fn NpyArray::to_f32(self) -> Result[Array[Float], NpyError]   // 另有 to_bool / to_i8…to_i64 /
-pub fn NpyArray::to_f64(self) -> Result[Array[Double], NpyError]  // to_u8…to_u64（共 13 个 accessor）
+pub fn NpyArray::to_f64(self) -> Result[Array[Double], NpyError]  // to_u8…to_u64（共 13 个全量 accessor）
 pub fn NpyArray::to_c64(self) -> Result[Array[Complex], NpyError] // complex64（v0.2.0 S1）
 pub fn NpyArray::to_c16(self) -> Result[Array[Complex], NpyError] // complex128（v0.2.0 S1）
+pub fn NpyArray::to_f32_chunk(self, start : Int, len : Int) -> Result[Array[Float], NpyError]
+pub fn NpyArray::to_f64_chunk(self, start : Int, len : Int) -> Result[Array[Double], NpyError]
+// storage-order 窗口 [start, start + len)；越界 / 负值 → InvalidChunkRange（v0.2.0 S4）
 
 // src/writer — 序列化回字节级对齐 np.save 的 NPY
 pub fn encode(array : NpyArray) -> Result[Bytes, NpyError]
@@ -328,6 +346,7 @@ pub(all) enum NpyError {
     │
     ├──►  reader.validate(Bytes) → NpyMeta        （只校验，不解元素）
     ├──►  reader.decode(Bytes)   → NpyArray → to_f32() / to_i64() / …  （惰性类型化访问）
+    │                              └─ to_f32_chunk(start, len) / to_f64_chunk：storage-order 窗口（S4）
     └──►  writer.encode(NpyArray) → Bytes         （字节级对齐 np.save）
 
   error     enum NpyError（13 构造子）贯穿所有层的 Result 失败通道
@@ -353,7 +372,7 @@ moon-npy/
 │   ├── error/             # enum NpyError + Result
 │   └── cli/               # inspect / validate / dump 纯逻辑（parse_args + 渲染，无 IO）
 ├── cmd/main/              # CLI 可执行薄壳（@fs 读字节 + extern "c" exit 设退出码）
-├── tests/                 # *_test.mbt（112，含 edge / fuzz / security / property）+ fixtures/（*.npy + expected.json）
+├── tests/                 # *_test.mbt（118，含 edge / fuzz / security / property）+ fixtures/（*.npy + expected.json）
 ├── interoperability/      # generate_fixtures.py / verify_moonbit_output.py / roundtrip.py
 ├── examples/roundtrip/    # emit harness（decode -> encode -> write，`moon run`）
 └── .github/workflows/     # ci.yml（§19：fmt/check/test/coverage/fixture/round-trip）
@@ -361,8 +380,9 @@ moon-npy/
 
 ## Limitations
 
-范围控制是本项目的第一原则（§5「明确不做什么」）。v0.1.0 有意不实现下列能力，v0.2.0 仅新增
-complex64 / complex128 读取，未扩大其余范围：
+范围控制是本项目的第一原则（§5「明确不做什么」）。v0.1.0 有意不实现下列能力；v0.2.0 只新增三项
+——complex64 / complex128 读取（S1）、CLI `dump [--limit N]`（S5）、storage-order 窗口读取（S4）
+——其余范围未扩大：
 
 - **不是 NumPy**：无线性代数 / FFT / 广播 / 矩阵运算，无 Tensor framework / 自动微分 /
   模型加载（PyTorch 等）。moon-npy 只做 `.npy` 二进制**序列化 / 反序列化**。
@@ -375,7 +395,9 @@ complex64 / complex128 读取，未扩大其余范围：
   metadata，由消费方自行 reshape 成 N-D（保持核心小而完整）。
 - **encode 的前置条件**：`writer.encode` 只重序列化 `reader.decode` 得到的 `NpyArray`
   （payload 原样透传、header 按 NumPy 文本形式重建）；「从任意 typed array 构造 NPY」为预留能力。
-- **单文件、全内存**：一次性读入 `Bytes` 后解析，无 streaming / 分块读（Stretch）。
+- **单文件、全内存**：一次性读入整个 `Bytes` 后解析，**没有跨文件 I/O 的 streaming**（不会边读磁盘
+  边解码）。v0.2.0 S4 的 `to_f32_chunk` / `to_f64_chunk` 只把**输出数组**限到一个窗口，payload
+  本身仍全部驻留内存；真正的按页惰性读（mmap / 文件 seek）不在本轮范围。
 
 ## Security
 
@@ -425,14 +447,14 @@ Mechanics backing those claims (all exercised by `moon test`):
 ```bash
 moon fmt                                   # 格式化（CI 用 git diff --exit-code 强制无改动）
 moon check --target native                 # 类型检查
-moon test --target native                  # 112 单元测试
+moon test --target native                  # 118 个单元测试
 ```
 
 **覆盖率**（CI 强制阈值门禁：core parser ≥90% / overall ≥80%，未达即失败）：
 
 ```bash
 moon test --target native --enable-coverage; moon coverage analyze
-moon coverage report -f summary            # 当前 core parser 98.5%、overall 91.3%
+moon coverage report -f summary            # 当前 core parser 98.5%、overall 91.4%
 ```
 
 **跨语言互操作**（需 NumPy / Python）：

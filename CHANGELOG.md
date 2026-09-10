@@ -68,8 +68,33 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   grep `(1, 2)`（`-F` 字面匹配）、坏 `--limit` 捕获退出码 `== 2`；`README.md` /
   `README_CN.md` 的 CLI 段粘贴上述真实输出并注明 `dump` 先全量解码再截断（`--limit` 省输出行数、
   不省内存）。
+- **storage-order 分块读取（v0.2.0 Stretch S4）** — `src/error/`：`NpyError` 新增第 **13** 个变体
+  `InvalidChunkRange(Int, Int)`，载荷是原始 `(start, len)`（含负值）；`pub(all) enum` 加变体会立即
+  打破穷尽 match，故与 `src/cli/render_error` 的新分支同提交。渲染沿用已有千分位风格但**不带
+  ` bytes` 后缀**（这两个数是元素下标）；`group_digits` 顺势修正——旧实现把前导 `-` 当成一位数字，
+  位数恰为 3 的倍数时逗号错位（`-100` → `-,100`、`-100000` → `-,100,000`），新实现把符号移到分隔符
+  之外，**非负输入逐字节不变**（用旧 / 新算法 1:1 复现核对，`DataLengthMismatch` 的既有输出零漂移）。
+  `src/reader/`：新增私有 `fn[T] flat_range(arr, want, read, start, len)`，既有 `flat` 改为以
+  `(0, element_count)` 委托它——全量 accessor 与窗口 accessor 共用同一条 dtype 校验 / 解码路径；
+  窗口边界在 **Int64** 上对 `element_count` 校验（Int 下 `start + len` 可溢出为假通过），失败返回
+  `InvalidChunkRange` 而非 panic（§18 totality）。公开面只加 `to_f32_chunk` / `to_f64_chunk`
+  两个（§29 Demo 的 float32 embeddings 主用例），其它 dtype 的窗口访问器按需再加（YAGNI）。
+  语义诚实：窗口省的是**输出数组**，不是 payload——`decode` 已把整段数据读进内存，本 API **不是
+  lazy I/O**；据此改写 `README.md` / `README_CN.md` 的 Limitations（原「无 streaming / 分块读」→
+  「无跨文件 I/O 的 streaming」）、Quick Start 的「惰性」措词、以及 S5 留下的「`--limit` 不省内存」
+  前向指针。新增一个以 `header.shape` 算 stride 的行切片用例，README 展示的
+  `to_f32_chunk(k * 768, 768)` 行读法因此有真实测试背书（§19 铁律）。
+  单元测试 **111 → 118**（一个 `render_error` 用例 + 六个窗口用例：中间窗口、`(0, count)` 与全量
+  accessor 逐元素相等（f32 / f64 各一条，钉住委托重构不漂移）、空窗口含 `start == element_count`
+  末游标、6 个被拒窗口逐条回捕、dtype 先于窗口校验、行切片）；覆盖率 core parser **98.5%**
+  （129/131，不变）、overall **91.2% → 91.4%**（675/740 → 688/753：`reader.mbt` 新增行全被覆盖，
+  该文件保持 100%）。
 
 ### Changed
+
+- `src/reader/reader.mbt` 内部重构——泛型 `flat(arr, want, read)` 不再是全量解码的唯一实现，而是
+  委托给新的 `flat_range`。公开签名零变更，行为等价性由既有的全部 accessor 测试与新增的
+  `(0, count)` 窗口相等断言共同钉住。
 
 - `.github/workflows/ci.yml` — round-trip 步骤名去掉写死的 fixture 计数（原 `(26 fixtures)`）：
   `tests/fixtures/expected.json` 是唯一名单，`roundtrip.py` 自身打印 `N/N passed`，在步骤名里
