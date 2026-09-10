@@ -16,6 +16,7 @@ venv/
 *.coverage
 bisect.coverage
 uncovered.log
+coverage-summary.txt
 
 # --- OS / editor ---
 .DS_Store

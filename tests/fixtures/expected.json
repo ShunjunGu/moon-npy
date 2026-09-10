@@ -7,7 +7,7 @@
     "deterministic": true,
     "note": "\u5b57\u6bb5\u5168\u90e8\u89e3\u6790\u81ea numpy \u771f\u5b9e\u4ea7\u7269\uff1b\u91cd\u8dd1\uff08\u540c numpy \u7248\u672c\uff09\u5b57\u8282\u4e00\u81f4\u3002"
   },
-  "count": 26,
+  "count": 31,
   "fixtures": [
     {
       "file": "f4_2x3_c_le_v1.npy",
@@ -1027,6 +1027,332 @@
         5
       ],
       "note": "M2\uff1aF-order 2-D BE int32"
+    },
+    {
+      "file": "c8_4_c_le_v1.npy",
+      "version": [
+        1,
+        0
+      ],
+      "descr": "<c8",
+      "dtype": "complex64",
+      "byteorder": "<",
+      "shape": [
+        4
+      ],
+      "fortran_order": false,
+      "itemsize": 8,
+      "element_count": 4,
+      "header_len": 118,
+      "header_start": 10,
+      "data_offset": 128,
+      "data_nbytes": 32,
+      "file_nbytes": 160,
+      "aligned_64": true,
+      "sha256": "a302170c4e616070c1b1be480440a185931a8fc6795ed8e5f8cf2667a310feae",
+      "data_sha256": "9716be5230e5c605a268f3ec151f9ff282bced6a6e4b9c77c0fcf689e7330945",
+      "values": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          1.0,
+          2.0
+        ],
+        [
+          2.0,
+          4.0
+        ],
+        [
+          3.0,
+          6.0
+        ]
+      ],
+      "flat_values": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          1.0,
+          2.0
+        ],
+        [
+          2.0,
+          4.0
+        ],
+        [
+          3.0,
+          6.0
+        ]
+      ],
+      "note": "S1\uff1acomplex64 1-D LE"
+    },
+    {
+      "file": "c8_4_c_be_v1.npy",
+      "version": [
+        1,
+        0
+      ],
+      "descr": ">c8",
+      "dtype": "complex64",
+      "byteorder": ">",
+      "shape": [
+        4
+      ],
+      "fortran_order": false,
+      "itemsize": 8,
+      "element_count": 4,
+      "header_len": 118,
+      "header_start": 10,
+      "data_offset": 128,
+      "data_nbytes": 32,
+      "file_nbytes": 160,
+      "aligned_64": true,
+      "sha256": "cb13c736ebb57c07f5b79bdc8f01ed412b05d64b9043f3a37169860247d939d9",
+      "data_sha256": "52f2aa5df048781c9dd8cd5e0b2f2e6cabf0d2c7f65ca0a36927c5b1f42d4903",
+      "values": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          1.0,
+          2.0
+        ],
+        [
+          2.0,
+          4.0
+        ],
+        [
+          3.0,
+          6.0
+        ]
+      ],
+      "flat_values": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          1.0,
+          2.0
+        ],
+        [
+          2.0,
+          4.0
+        ],
+        [
+          3.0,
+          6.0
+        ]
+      ],
+      "note": "S1\uff1acomplex64 1-D BE"
+    },
+    {
+      "file": "c16_4_c_le_v1.npy",
+      "version": [
+        1,
+        0
+      ],
+      "descr": "<c16",
+      "dtype": "complex128",
+      "byteorder": "<",
+      "shape": [
+        4
+      ],
+      "fortran_order": false,
+      "itemsize": 16,
+      "element_count": 4,
+      "header_len": 118,
+      "header_start": 10,
+      "data_offset": 128,
+      "data_nbytes": 64,
+      "file_nbytes": 192,
+      "aligned_64": true,
+      "sha256": "48e0c671db934a786cf3c809fd34fa09cdbf5e0d15e78e92fc1ef9fd7e8da594",
+      "data_sha256": "a2b0e8af03ed74e2459c561a55c35aaafcbba519ce60d0ba9c6f17d93a03703f",
+      "values": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          1.0,
+          2.0
+        ],
+        [
+          2.0,
+          4.0
+        ],
+        [
+          3.0,
+          6.0
+        ]
+      ],
+      "flat_values": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          1.0,
+          2.0
+        ],
+        [
+          2.0,
+          4.0
+        ],
+        [
+          3.0,
+          6.0
+        ]
+      ],
+      "note": "S1\uff1acomplex128 1-D LE"
+    },
+    {
+      "file": "c16_4_c_be_v1.npy",
+      "version": [
+        1,
+        0
+      ],
+      "descr": ">c16",
+      "dtype": "complex128",
+      "byteorder": ">",
+      "shape": [
+        4
+      ],
+      "fortran_order": false,
+      "itemsize": 16,
+      "element_count": 4,
+      "header_len": 118,
+      "header_start": 10,
+      "data_offset": 128,
+      "data_nbytes": 64,
+      "file_nbytes": 192,
+      "aligned_64": true,
+      "sha256": "04b8e7fde8d8516a10e3c857f0a875900ee3ec13e00fb0659317a38a15d2379a",
+      "data_sha256": "1538b8fc069ce1d35bb5841ae7bb44bc83d3bf915696c1f5e5869cf0f11abea7",
+      "values": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          1.0,
+          2.0
+        ],
+        [
+          2.0,
+          4.0
+        ],
+        [
+          3.0,
+          6.0
+        ]
+      ],
+      "flat_values": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          1.0,
+          2.0
+        ],
+        [
+          2.0,
+          4.0
+        ],
+        [
+          3.0,
+          6.0
+        ]
+      ],
+      "note": "S1\uff1acomplex128 1-D BE"
+    },
+    {
+      "file": "c8_2x3_c_le_v1.npy",
+      "version": [
+        1,
+        0
+      ],
+      "descr": "<c8",
+      "dtype": "complex64",
+      "byteorder": "<",
+      "shape": [
+        2,
+        3
+      ],
+      "fortran_order": false,
+      "itemsize": 8,
+      "element_count": 6,
+      "header_len": 118,
+      "header_start": 10,
+      "data_offset": 128,
+      "data_nbytes": 48,
+      "file_nbytes": 176,
+      "aligned_64": true,
+      "sha256": "962703e0774247ab2044d803c546ce12f61b42523b110d22c48784c62f851071",
+      "data_sha256": "fd1b77ec9ee0b0a38a0d58c23c8d2ffa35a9d790cb30538c55c383b20d16a343",
+      "values": [
+        [
+          [
+            0.0,
+            0.0
+          ],
+          [
+            1.0,
+            2.0
+          ],
+          [
+            2.0,
+            4.0
+          ]
+        ],
+        [
+          [
+            3.0,
+            6.0
+          ],
+          [
+            4.0,
+            8.0
+          ],
+          [
+            5.0,
+            10.0
+          ]
+        ]
+      ],
+      "flat_values": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          1.0,
+          2.0
+        ],
+        [
+          2.0,
+          4.0
+        ],
+        [
+          3.0,
+          6.0
+        ],
+        [
+          4.0,
+          8.0
+        ],
+        [
+          5.0,
+          10.0
+        ]
+      ],
+      "note": "S1\uff1acomplex64 2-D"
     }
   ]
 }

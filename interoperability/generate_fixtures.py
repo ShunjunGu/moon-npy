@@ -110,6 +110,7 @@ def m2_matrix_specs() -> list[Spec]:
         （单字节 b1/i1/u1 无字节序变体，descr 前缀 '|'）。
       * 追加 0-d scalar / 3-D / F-order 2-D（含 BE）各一，覆盖 element_count
         计算、扁平访问器与 storage-order 元数据。
+      * 追加 S1 complex：c8/c16 × LE/BE 的 1-D 与一个 2-D c8（共 5 个）。
     float 用 arange → 均为精确可表示值；bool 用奇偶交替（见 make_values）。
     """
     kind_sizes = [
@@ -130,6 +131,12 @@ def m2_matrix_specs() -> list[Spec]:
         Spec("<i2", (2, 2, 2), False, (1, 0), "M2：3-D int16（element_count=8）"),
         Spec("<f4", (2, 3), True, (1, 0), "M2：F-order 2-D float32"),
         Spec(">i4", (2, 3), True, (1, 0), "M2：F-order 2-D BE int32"),
+        # S1 complex: LE/BE × c8/c16 1-D + 一个 2-D c8（shape 覆盖）
+        Spec("<c8", (4,), False, (1, 0), "S1：complex64 1-D LE"),
+        Spec(">c8", (4,), False, (1, 0), "S1：complex64 1-D BE"),
+        Spec("<c16", (4,), False, (1, 0), "S1：complex128 1-D LE"),
+        Spec(">c16", (4,), False, (1, 0), "S1：complex128 1-D BE"),
+        Spec("<c8", (2, 3), False, (1, 0), "S1：complex64 2-D"),
     ]
     return specs
 
@@ -154,6 +161,11 @@ def make_values(descr: str, shape: tuple[int, ...], fortran_order: bool) -> np.n
     count = int(np.prod(shape, dtype=np.int64)) if len(shape) else 1
     if dt.kind == "b":
         flat = np.array([(i % 2 == 0) for i in range(count)], dtype=dt)
+    elif dt.kind == "c":
+        # S1: im = 2*re deliberately unequal — a swapped real/imag read in
+        # MoonBit fails the Oracle comparison instead of silently passing.
+        real = np.arange(count, dtype=np.float64)
+        flat = (real + 1j * (real * 2.0)).astype(dt)
     else:
         flat = np.arange(count, dtype=dt)
     order = "F" if fortran_order else "C"
@@ -232,6 +244,21 @@ def _endian_tag(descr: str) -> str:
     return {"<": "le", ">": "be", "|": "na", "=": "na"}[descr[0]]
 
 
+def jsonable(obj):
+    """complex -> [re, im]; recurse through list/tuple.
+
+    .tolist() turns a complex array into Python ``complex`` objects, which
+    ``json.dumps`` refuses (TypeError). The [re, im] pair is a purely
+    JSON-side convention for the Oracle; MoonBit reads the .npy bytes, not
+    this field. np.generic scalars are already handled by .tolist().
+    """
+    if isinstance(obj, complex):
+        return [obj.real, obj.imag]
+    if isinstance(obj, list):
+        return [jsonable(v) for v in obj]
+    return obj
+
+
 def build_entry(spec: Spec, path: Path, raw: bytes) -> dict:
     """解析一个已写出的 fixture，组装 expected.json 的一条记录。"""
     p = parse_npy(raw)
@@ -250,10 +277,10 @@ def build_entry(spec: Spec, path: Path, raw: bytes) -> dict:
 
     flat = np.frombuffer(data, dtype=dt)
     order = "F" if fortran_order else "C"
-    values = flat.reshape(shape if shape else (), order=order).tolist()
+    values = jsonable(flat.reshape(shape if shape else (), order=order).tolist())
     # storage-order 扁平真值：reshape 之前的缓冲顺序，正是 MoonBit 扁平
     # 访问器（Q2：按 storage order 返回）必须逐元素对齐的 Oracle。
-    flat_values = flat.tolist()
+    flat_values = jsonable(flat.tolist())
 
     return {
         "file": path.name,
