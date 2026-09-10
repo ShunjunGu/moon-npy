@@ -80,12 +80,12 @@ Pinned toolchain（CI 复现基准）：**MoonBit `0.1.20260827`** · **NumPy `2
 
 ## Installation
 
-模块清单 `moon.mod` 声明 `name = "ShunjunGu/moon-npy"`、`version = "0.1.0"`、
+模块清单 `moon.mod` 声明 `name = "ShunjunGu/moon-npy"`、`version = "0.2.0"`、
 `preferred_target = "native"`，依赖 `moonbitlang/x@0.5.1`（`@fs` 文件 IO）与
 `amor2025/moonNum@0.1.0`（仅 S6 适配器 `src/adapter/moonnum/` 使用，详见下文 Ecosystem
 Adapter）。核心层（format / header / dtype / reader / writer / error / cli）不依赖任何第三方库。
 
-**作为依赖引入**（v0.1.0 发布到 Mooncakes 后）：
+**作为依赖引入**（发布到 Mooncakes 后；当前尚未发布，请从源码构建）：
 
 ```bash
 moon add ShunjunGu/moon-npy

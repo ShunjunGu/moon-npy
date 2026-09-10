@@ -6,7 +6,13 @@ The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [v0.2.0] - 2026-09-10
+
+v0.2.0 Stretch 四项全部落地：complex64 / complex128 读取（S1）、CLI `dump [--limit N]`
+（S5）、storage-order 分块读取（S4）、moonNum 读方向适配（S6）；加上新增的创新包 A1/B1/A2。
+单元测试 85 → **128**，fixture 26 → **31**，覆盖率 core parser **98.5%**、overall **91.7%**；
+本仓首个（也是目前唯一一个）第三方依赖 `amor2025/moonNum@0.1.0`。工具链仍 pin
+MoonBit `0.1.20260827` / NumPy `2.3.4` / Python `3.14`。
 
 ### Added
 
