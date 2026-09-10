@@ -60,6 +60,34 @@ pub struct NpzArchive {
 }
 
 ///|
+// Look up a member by its archive key (without ".npy"). A miss is
+// NpzMemberNotFound -- get() is the only producer of that variant
+// (plan §3: a lookup failure, not a container defect, semantically kin to
+// MissingHeaderField).
+pub fn NpzArchive::get(
+  self : NpzArchive,
+  key : String,
+) -> Result[NpzMember, @error.NpyError] {
+  for m in self.members {
+    if m.name == key {
+      return Ok(m)
+    }
+  }
+  Err(@error.NpzMemberNotFound(key))
+}
+
+///|
+// Member keys in central-directory order (deterministic; probe note:
+// np.savez writes keyword members before positional ones).
+pub fn NpzArchive::names(self : NpzArchive) -> Array[String] {
+  let out : Array[String] = []
+  for m in self.members {
+    out.push(m.name)
+  }
+  out
+}
+
+///|
 // Byte-exact signature match at `base` (bounds-checked; never traps).
 fn match_sig(data : Bytes, base : Int, sig : Array[Byte]) -> Bool {
   if base < 0 || base + sig.length() > data.length() {

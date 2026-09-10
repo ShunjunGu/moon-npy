@@ -533,3 +533,78 @@ test "npz_reject_encrypted_member" {
     _ => assert_true(false)
   }
 }
+
+// ---- Task 3: NpzArchive::get / names, NPY-layer passthrough ----
+
+///|
+test "npz_two_members_get_and_names" {
+  // build_zip writes CD records in entry order, so names() must reflect it
+  // (probe note: np.savez emits keyword members before positional ones).
+  let w = {
+    name: @utf8.encode("w.npy"),
+    comp_method: 0,
+    gp_flags: 0,
+    payload: npy_v1(i4_header, i4_six()),
+  }
+  let a0 = {
+    name: @utf8.encode("arr_0.npy"),
+    comp_method: 0,
+    gp_flags: 0,
+    payload: npy_v1(
+      "{'descr': '<f4', 'fortran_order': False, 'shape': (2, 3), }",
+      [
+        b'\x00', b'\x00', b'\x80', b'\x3F', b'\x00', b'\x00', b'\x00', b'\x40', b'\x00',
+        b'\x00', b'\x40', b'\x40', b'\x00', b'\x00', b'\x80', b'\x40', b'\x00', b'\x00',
+        b'\xA0', b'\x40', b'\x00', b'\x00', b'\xC0', b'\x40',
+      ],
+    ),
+  }
+  let img = build_zip([w, a0])
+  match @npz.decode_npz(img.bytes) {
+    Ok(arch) => {
+      assert_eq(arch.names(), ["w", "arr_0"])
+      // get() hits decode the full NPY semantics, dtype/shape preserved.
+      match arch.get("arr_0") {
+        Ok(m) => {
+          assert_eq(m.array.element_count, 6L)
+          match m.array.to_f32() {
+            Ok(vs) => assert_eq(vs, [1.0, 2.0, 3.0, 4.0, 5.0, 6.0])
+            _ => assert_true(false)
+          }
+        }
+        _ => assert_true(false)
+      }
+      match arch.get("w") {
+        Ok(m) => assert_eq(m.name, "w")
+        _ => assert_true(false)
+      }
+      // A lookup miss is NpzMemberNotFound -- get() is the only producer.
+      match arch.get("nope") {
+        Err(@error.NpzMemberNotFound("nope")) => ()
+        _ => assert_true(false)
+      }
+    }
+    Err(_) => assert_true(false)
+  }
+}
+
+///|
+test "npz_container_refuses_object_dtype_member" {
+  // A '|O' member fails inside the container path with the NPY-layer
+  // refusal unchanged: the container bypasses no file-level boundary.
+  let img = build_zip([
+    {
+      name: @utf8.encode("obj.npy"),
+      comp_method: 0,
+      gp_flags: 0,
+      payload: npy_v1(
+        "{'descr': '|O', 'fortran_order': False, 'shape': (2,)}",
+        i4_six(),
+      ),
+    },
+  ])
+  match @npz.decode_npz(img.bytes) {
+    Err(@error.UnsupportedObjectArray) => ()
+    _ => assert_true(false)
+  }
+}
