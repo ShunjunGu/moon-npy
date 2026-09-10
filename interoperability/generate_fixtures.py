@@ -33,6 +33,7 @@ import ast
 import hashlib
 import json
 import platform
+import struct
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -375,8 +376,27 @@ def check(out_dir: Path) -> int:
     if drift:
         print(f"[check] {drift} fixture(s) drifted — rerun generator", file=sys.stderr)
         return 1
-    print(f"[check] OK — {doc['count']} fixture(s) match expected.json "
-          f"(numpy {doc['oracle']['numpy']})")
+    # NPZ 产物 drift 门禁（v0.3.0 C1）：重跑字节一致（schema 同 expected.json）。
+    npz_count = 0
+    npz_expected_path = out_dir / "npz_expected.json"
+    if npz_expected_path.exists():
+        ndoc = json.loads(npz_expected_path.read_text(encoding="utf-8"))
+        npz_count = ndoc["count"]
+        for arch in ndoc["archives"]:
+            path = out_dir / arch["file"]
+            if not path.exists():
+                print(f"[check] MISSING file: {arch['file']}")
+                drift += 1
+                continue
+            actual = hashlib.sha256(path.read_bytes()).hexdigest()
+            if actual != arch["sha256"]:
+                print(f"[check] DRIFT: {arch['file']} sha256 {actual} != {arch['sha256']}")
+                drift += 1
+    if drift:
+        print(f"[check] {drift} fixture(s) drifted — rerun generator", file=sys.stderr)
+        return 1
+    print(f"[check] OK — {doc['count']} fixture(s) + {npz_count} archive(s) match "
+          f"expected.json / npz_expected.json (numpy {doc['oracle']['numpy']})")
     return 0
 
 
@@ -391,6 +411,171 @@ def _print_summary(doc: dict) -> None:
               f"{'T' if e['fortran_order'] else 'F':2} "
               f"{e['header_len']:5} {e['data_offset']:5} {e['file_nbytes']:7}")
     print(f"\n{doc['count']} fixture(s) written.")
+
+
+# --- NPZ 容器 fixture（v0.3.0 C1）-------------------------------------------
+def npz_archive_specs() -> list[dict]:
+    """3 个 npz 产物的构造意图。成员数组值复用 make_values（确定性）。
+
+    CD 顺序的 probe 事实：np.savez 先写 kwargs 成员，后写 positional 成员。
+    """
+    return [
+        {
+            "file": "npz_3arr_c_le_v1.npz",
+            "compressed": False,
+            "args": [("<f4", (2, 3), False), ("<i4", (4,), False), ("|b1", (4,), False)],
+            "kwargs": {},
+            "note": "positional members arr_0/arr_1/arr_2（f4 2x3 + i4 + b1）",
+        },
+        {
+            "file": "npz_customkey_c_le_v1.npz",
+            "compressed": False,
+            "args": [],
+            "kwargs": {"w": ("<i4", (4,), False), "v": ("<f4", (2, 3), False)},
+            "note": "custom keys w/v；kwargs 保持插入顺序（CD 顺序 w 先 v 后）",
+        },
+        {
+            "file": "npz_deflated_c_le_v1.npz",
+            "compressed": True,
+            "args": [("<f4", (2, 3), False)],
+            "kwargs": {},
+            "note": "np.savez_compressed 产物（method=8）：decode_npz 必须拒绝",
+        },
+    ]
+
+
+def parse_npz(raw: bytes) -> dict:
+    """按 ZIP 布局解析 np.savez 产物（与 MoonBit decode_npz 同构的字节级解析）。
+
+    手工解析而非 zipfile：expected.json 的一切字段都从产物解析得来，且与
+    probe_npz.py pin 的事实一致（EOCD 精确尾匹配 / CD walk / local header
+    的 name/extra 决定 data_start）。压缩成员 payload 不解压，只记摘要。
+    """
+    eocd = raw.rfind(b"PK\x05\x06")
+    assert eocd != -1, "no EOCD signature"
+    comment_len = int.from_bytes(raw[eocd + 20:eocd + 22], "little")
+    assert eocd + 22 + comment_len == len(raw), "EOCD not at exact tail"
+    (_, _, _, total_entries, cd_size, cd_offset) = struct.unpack_from(
+        "<HHHHII", raw, eocd + 4)
+    assert total_entries != 0xFFFF, "zip64 entry-count sentinel"
+    assert cd_size != 0xFFFFFFFF and cd_offset != 0xFFFFFFFF, "zip64 size sentinel"
+    assert cd_offset + cd_size <= eocd, "CD out of range"
+    members: list[dict] = []
+    pos = cd_offset
+    for n in range(total_entries):
+        assert raw[pos:pos + 4] == b"PK\x01\x02", f"CD[{n}] bad sig"
+        (_, _, gp_flags, method, _, _, _, comp_size, _, name_len,
+         extra_len, m_comment_len, _, _, _, local_offset) = struct.unpack_from(
+            "<HHHHHHIIIHHHHHII", raw, pos + 4)
+        name = raw[pos + 46:pos + 46 + name_len].decode("utf-8")
+        assert raw[local_offset:local_offset + 4] == b"PK\x03\x04", \
+            f"CD[{n}] local header bad sig"
+        (lname_len, lextra_len) = struct.unpack_from("<HH", raw, local_offset + 26)
+        data_start = local_offset + 30 + lname_len + lextra_len
+        members.append({
+            "name": name,
+            "method": method,
+            "gp_flags": gp_flags,
+            "comp_size": comp_size,
+            "local_offset": local_offset,
+            "data_start": data_start,
+            "payload": raw[data_start:data_start + comp_size],
+        })
+        pos += 46 + name_len + extra_len + m_comment_len
+    return {
+        "total_entries": total_entries, "cd_size": cd_size,
+        "cd_offset": cd_offset, "eocd": eocd, "members": members,
+    }
+
+
+def npz_member_entry(member: dict) -> dict:
+    """一个 npz 成员的 expected 记录。stored 成员 payload 是完整 NPY 字节流，
+    直接用 parse_npy 提取 header 真值与逐元素 Oracle 值；压缩成员只记摘要
+    （MoonBit 侧对 method=8 的行为是整体拒绝，无需值级真值）。"""
+    entry: dict = {
+        "raw_name": member["name"],
+        "name": member["name"][:-4] if member["name"].endswith(".npy") else member["name"],
+        "method": member["method"],
+        "comp_size": member["comp_size"],
+        "data_start": member["data_start"],
+        "payload_sha256": hashlib.sha256(member["payload"]).hexdigest(),
+    }
+    if member["method"] == 0:
+        p = parse_npy(member["payload"])
+        hdr = p["header"]
+        descr = hdr["descr"]
+        shape = tuple(hdr["shape"])
+        fo = bool(hdr["fortran_order"])
+        dt = np.dtype(descr)
+        flat = np.frombuffer(p["data"], dtype=dt)
+        order = "F" if fo else "C"
+        entry.update({
+            "descr": descr,
+            "shape": list(shape),
+            "fortran_order": fo,
+            "values": jsonable(
+                flat.reshape(shape if shape else (), order=order).tolist()),
+            "flat_values": jsonable(flat.tolist()),
+        })
+    return entry
+
+
+def generate_npz(out_dir: Path) -> dict:
+    """生成 3 个 npz Oracle fixture 并写 npz_expected.json（独立函数，不动
+    generate(specs) 主体 —— .npy drift 门禁行为零变化）。"""
+    out_dir.mkdir(parents=True, exist_ok=True)
+    archives: list[dict] = []
+    for spec in npz_archive_specs():
+        path = out_dir / spec["file"]
+        args = [make_values(*a) for a in spec["args"]]
+        kwargs = {k: make_values(*v) for k, v in spec["kwargs"].items()}
+        if spec["compressed"]:
+            np.savez_compressed(str(path), *args, **kwargs)
+        else:
+            np.savez(str(path), *args, **kwargs)
+        raw = path.read_bytes()
+        z = parse_npz(raw)
+        members = [npz_member_entry(m) for m in z["members"]]
+        # 自校验：CD 顺序 = kwargs 先于 args（probe fact），与 spec 意图一致。
+        expected_names = [f"{k}.npy" for k in spec["kwargs"]] + \
+            [f"arr_{i}.npy" for i in range(len(spec["args"]))]
+        actual_names = [m["raw_name"] for m in members]
+        assert actual_names == expected_names, \
+            f"{spec['file']}: CD order {actual_names} != {expected_names}"
+        # stored 成员值自校验：与 make_values 构造的 flat 值逐一相等。
+        if not spec["compressed"]:
+            constructed = [jsonable(make_values(*v).ravel().tolist())
+                           for v in spec["kwargs"].values()] + \
+                [jsonable(make_values(*a).ravel().tolist()) for a in spec["args"]]
+            for m, want in zip(members, constructed):
+                assert m["method"] == 0, f"{spec['file']}/{m['name']}: not stored"
+                assert m["flat_values"] == want, \
+                    f"{spec['file']}/{m['name']}: flat_values mismatch"
+        archives.append({
+            "file": spec["file"],
+            "compressed": spec["compressed"],
+            "total_entries": z["total_entries"],
+            "member_count": len(members),
+            "members": members,
+            "sha256": hashlib.sha256(raw).hexdigest(),
+            "note": spec["note"],
+        })
+    doc = {
+        "oracle": {
+            "numpy": np.__version__,
+            "python": platform.python_version(),
+            "generator": "interoperability/generate_fixtures.py",
+            "spec_ref": "docs/plans/2026-09-10-moon-npy-v0.3.0-npz.md §4 Task 4",
+            "deterministic": True,
+            "note": "字段全部解析自 numpy 真实产物；重跑（同 numpy 版本）字节一致。",
+        },
+        "count": len(archives),
+        "archives": archives,
+    }
+    (out_dir / "npz_expected.json").write_text(
+        json.dumps(doc, indent=2, ensure_ascii=True) + "\n", encoding="utf-8"
+    )
+    return doc
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -408,8 +593,11 @@ def main(argv: list[str] | None = None) -> int:
 
     specs = full_specs() if args.full else committed_specs()
     doc = generate(specs, args.out)
+    npz_doc = generate_npz(args.out)
     _print_summary(doc)
     print(f"expected.json → {args.out / 'expected.json'}")
+    print(f"npz_expected.json → {args.out / 'npz_expected.json'} "
+          f"({npz_doc['count']} archive(s))")
     return 0
 
 

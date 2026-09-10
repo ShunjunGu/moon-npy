@@ -14,6 +14,10 @@
 # diff, or merge to them.
 *.npy binary
 
+# NPZ container fixtures are likewise byte-exact ZIP binaries
+# (tests/fixtures/npz_expected.json pins their sha256).
+*.npz binary
+
 # Windows-specific helper scripts keep CRLF if added later.
 *.bat text eol=crlf
 *.cmd text eol=crlf

@@ -155,8 +155,8 @@ fn resolve_member_name(raw : Bytes) -> Result[String, @error.NpyError] {
     Err(e) => return Err(e)
   }
   let n = name.length()
-  if n >= 4 && name[n - 4:].to_string() == ".npy" {
-    Ok(name[:n - 4].to_string())
+  if n >= 4 && name[n - 4:] == ".npy" {
+    Ok(name[:n - 4].to_owned())
   } else {
     Ok(name)
   }

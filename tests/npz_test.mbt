@@ -608,3 +608,101 @@ test "npz_container_refuses_object_dtype_member" {
     _ => assert_true(false)
   }
 }
+
+// ---- v0.3.0 C1 Task 4: byte-exact np.savez Oracle fixtures ----
+// Values below are hard-coded from tests/fixtures/npz_expected.json (NumPy
+// 2.3.4 oracle; make_values determinism: arange for numerics, i%2==0 for bool).
+// The JSON itself is only the drift gate -- MoonBit asserts the real bytes.
+
+// npz_3arr_c_le_v1.npz: np.savez(f4 (2,3), i4 (4,), b1 (4,)) -- positional
+// members land in CD order arr_0/arr_1/arr_2.
+
+///|
+test "npz_oracle_fixture_3arr" {
+  match @npz.decode_npz(load_fixture("npz_3arr_c_le_v1.npz")) {
+    Ok(arch) => {
+      assert_eq(arch.names(), ["arr_0", "arr_1", "arr_2"])
+      // arr_0: <f4 (2,3) C-order, arange(6)
+      match arch.get("arr_0") {
+        Ok(m) => {
+          assert_eq(m.array.header.descr, "<f4")
+          assert_eq(m.array.header.shape, [2UL, 3UL])
+          match m.array.to_f32() {
+            Ok(vs) => assert_eq(vs, [0.0, 1.0, 2.0, 3.0, 4.0, 5.0])
+            _ => assert_true(false)
+          }
+        }
+        _ => assert_true(false)
+      }
+      // arr_1: <i4 (4,), arange(4)
+      match arch.get("arr_1") {
+        Ok(m) => {
+          assert_eq(m.array.header.descr, "<i4")
+          assert_eq(m.array.element_count, 4L)
+          match m.array.to_i32() {
+            Ok(vs) => assert_eq(vs, [0, 1, 2, 3])
+            _ => assert_true(false)
+          }
+        }
+        _ => assert_true(false)
+      }
+      // arr_2: |b1 (4,), bool alternating (even index true)
+      match arch.get("arr_2") {
+        Ok(m) => {
+          assert_eq(m.array.header.descr, "|b1")
+          match m.array.to_bool() {
+            Ok(vs) => assert_eq(vs, [true, false, true, false])
+            _ => assert_true(false)
+          }
+        }
+        _ => assert_true(false)
+      }
+    }
+    Err(_) => assert_true(false)
+  }
+}
+
+// npz_customkey_c_le_v1.npz: np.savez(w=..., v=...) -- custom keys keep the
+// kwargs insertion order in the CD (w before v); names() strips ".npy".
+
+///|
+test "npz_oracle_fixture_customkey" {
+  match @npz.decode_npz(load_fixture("npz_customkey_c_le_v1.npz")) {
+    Ok(arch) => {
+      assert_eq(arch.names(), ["w", "v"])
+      match arch.get("w") {
+        Ok(m) => {
+          assert_eq(m.array.header.descr, "<i4")
+          match m.array.to_i32() {
+            Ok(vs) => assert_eq(vs, [0, 1, 2, 3])
+            _ => assert_true(false)
+          }
+        }
+        _ => assert_true(false)
+      }
+      match arch.get("v") {
+        Ok(m) => {
+          assert_eq(m.array.header.descr, "<f4")
+          assert_eq(m.array.header.shape, [2UL, 3UL])
+          match m.array.to_f32() {
+            Ok(vs) => assert_eq(vs, [0.0, 1.0, 2.0, 3.0, 4.0, 5.0])
+            _ => assert_true(false)
+          }
+        }
+        _ => assert_true(false)
+      }
+    }
+    Err(_) => assert_true(false)
+  }
+}
+
+// npz_deflated_c_le_v1.npz: real np.savez_compressed output -- method=8 must
+// be refused with the member's stripped name, matching the synthetic refusal.
+
+///|
+test "npz_oracle_fixture_deflated_refused" {
+  match @npz.decode_npz(load_fixture("npz_deflated_c_le_v1.npz")) {
+    Err(@error.NpzCompressedMember("arr_0")) => ()
+    _ => assert_true(false)
+  }
+}

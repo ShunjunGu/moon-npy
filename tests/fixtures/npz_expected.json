@@ -1,0 +1,194 @@
+{
+  "oracle": {
+    "numpy": "2.3.4",
+    "python": "3.14.0",
+    "generator": "interoperability/generate_fixtures.py",
+    "spec_ref": "docs/plans/2026-09-10-moon-npy-v0.3.0-npz.md \u00a74 Task 4",
+    "deterministic": true,
+    "note": "\u5b57\u6bb5\u5168\u90e8\u89e3\u6790\u81ea numpy \u771f\u5b9e\u4ea7\u7269\uff1b\u91cd\u8dd1\uff08\u540c numpy \u7248\u672c\uff09\u5b57\u8282\u4e00\u81f4\u3002"
+  },
+  "count": 3,
+  "archives": [
+    {
+      "file": "npz_3arr_c_le_v1.npz",
+      "compressed": false,
+      "total_entries": 3,
+      "member_count": 3,
+      "members": [
+        {
+          "raw_name": "arr_0.npy",
+          "name": "arr_0",
+          "method": 0,
+          "comp_size": 152,
+          "data_start": 59,
+          "payload_sha256": "47d9cb788e60cfff38faf2237400d94063bde1f42a0ad39297e02642caca6b56",
+          "descr": "<f4",
+          "shape": [
+            2,
+            3
+          ],
+          "fortran_order": false,
+          "values": [
+            [
+              0.0,
+              1.0,
+              2.0
+            ],
+            [
+              3.0,
+              4.0,
+              5.0
+            ]
+          ],
+          "flat_values": [
+            0.0,
+            1.0,
+            2.0,
+            3.0,
+            4.0,
+            5.0
+          ]
+        },
+        {
+          "raw_name": "arr_1.npy",
+          "name": "arr_1",
+          "method": 0,
+          "comp_size": 144,
+          "data_start": 270,
+          "payload_sha256": "3f7c5f11c6d38f164cb3cef1ac88a2a119a8556e3c9a14c32e2f24d8cba2521c",
+          "descr": "<i4",
+          "shape": [
+            4
+          ],
+          "fortran_order": false,
+          "values": [
+            0,
+            1,
+            2,
+            3
+          ],
+          "flat_values": [
+            0,
+            1,
+            2,
+            3
+          ]
+        },
+        {
+          "raw_name": "arr_2.npy",
+          "name": "arr_2",
+          "method": 0,
+          "comp_size": 132,
+          "data_start": 473,
+          "payload_sha256": "638c181819411d3d93302eb67a042341da71aa0d170f02e0fe8262ad22d82603",
+          "descr": "|b1",
+          "shape": [
+            4
+          ],
+          "fortran_order": false,
+          "values": [
+            true,
+            false,
+            true,
+            false
+          ],
+          "flat_values": [
+            true,
+            false,
+            true,
+            false
+          ]
+        }
+      ],
+      "sha256": "fe6fedfac56aab4c82880fa7f349d73d3895288423942bc19b3f11e3fef0661d",
+      "note": "positional members arr_0/arr_1/arr_2\uff08f4 2x3 + i4 + b1\uff09"
+    },
+    {
+      "file": "npz_customkey_c_le_v1.npz",
+      "compressed": false,
+      "total_entries": 2,
+      "member_count": 2,
+      "members": [
+        {
+          "raw_name": "w.npy",
+          "name": "w",
+          "method": 0,
+          "comp_size": 144,
+          "data_start": 55,
+          "payload_sha256": "3f7c5f11c6d38f164cb3cef1ac88a2a119a8556e3c9a14c32e2f24d8cba2521c",
+          "descr": "<i4",
+          "shape": [
+            4
+          ],
+          "fortran_order": false,
+          "values": [
+            0,
+            1,
+            2,
+            3
+          ],
+          "flat_values": [
+            0,
+            1,
+            2,
+            3
+          ]
+        },
+        {
+          "raw_name": "v.npy",
+          "name": "v",
+          "method": 0,
+          "comp_size": 152,
+          "data_start": 254,
+          "payload_sha256": "47d9cb788e60cfff38faf2237400d94063bde1f42a0ad39297e02642caca6b56",
+          "descr": "<f4",
+          "shape": [
+            2,
+            3
+          ],
+          "fortran_order": false,
+          "values": [
+            [
+              0.0,
+              1.0,
+              2.0
+            ],
+            [
+              3.0,
+              4.0,
+              5.0
+            ]
+          ],
+          "flat_values": [
+            0.0,
+            1.0,
+            2.0,
+            3.0,
+            4.0,
+            5.0
+          ]
+        }
+      ],
+      "sha256": "8bc31a6a7db1dd7308561138bcd4839548a23dc6dc467ed5fcacd3f6cff6f0c4",
+      "note": "custom keys w/v\uff1bkwargs \u4fdd\u6301\u63d2\u5165\u987a\u5e8f\uff08CD \u987a\u5e8f w \u5148 v \u540e\uff09"
+    },
+    {
+      "file": "npz_deflated_c_le_v1.npz",
+      "compressed": true,
+      "total_entries": 1,
+      "member_count": 1,
+      "members": [
+        {
+          "raw_name": "arr_0.npy",
+          "name": "arr_0",
+          "method": 8,
+          "comp_size": 93,
+          "data_start": 59,
+          "payload_sha256": "6e4a4b3f56b7d936b8c7e68b44b25d067f84f31950ccb7a5627697962ee54473"
+        }
+      ],
+      "sha256": "90ac63ccdf31fae0f892dbb2e2b9555e1514c37ee56d41574a538f3d68cc49cd",
+      "note": "np.savez_compressed \u4ea7\u7269\uff08method=8\uff09\uff1adecode_npz \u5fc5\u987b\u62d2\u7edd"
+    }
+  ]
+}
