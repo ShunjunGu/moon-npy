@@ -2,7 +2,7 @@
 // All argument parsing and output rendering live in the src/cli library; this
 // file owns only the two side effects §10.2 permits a `cmd/main` to own: read
 // the file's bytes (@fs) and set the process exit status. Usage:
-//   moon run cmd/main --target native -- <inspect|validate> <file.npy>
+//   moon run cmd/main --target native -- <inspect|validate|dump> <file.npy>
 // @env.args()[0] is the exe path, so the subcommand is [1] and the path [2]
 // (AGENTS.md §6).
 
@@ -53,6 +53,7 @@ fn resolve(argv : Array[String]) -> @cli.CliOutcome {
   match sub {
     @cli.Inspect => @cli.run_inspect(path, data)
     @cli.Validate => @cli.run_validate(path, data)
+    @cli.Dump(limit) => @cli.run_dump(path, data, limit)
   }
 }
 

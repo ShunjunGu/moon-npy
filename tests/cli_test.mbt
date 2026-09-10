@@ -54,6 +54,58 @@ test "parse_args_unknown_subcommand" {
   }
 }
 
+///|
+test "parse_args_dump_default_limit" {
+  match @cli.parse_args(["moon-npy", "dump", "a.npy"]) {
+    Ok((sub, path)) => {
+      assert_eq(sub, @cli.Dump(10))
+      assert_eq(path, "a.npy")
+    }
+    Err(_) => assert_true(false)
+  }
+}
+
+///|
+test "parse_args_dump_with_limit" {
+  match @cli.parse_args(["moon-npy", "dump", "a.npy", "--limit", "3"]) {
+    Ok((sub, path)) => {
+      assert_eq(sub, @cli.Dump(3))
+      assert_eq(path, "a.npy")
+    }
+    Err(_) => assert_true(false)
+  }
+  // limit 0 is legal: the dump then prints only the counting line.
+  match @cli.parse_args(["moon-npy", "dump", "a.npy", "--limit", "0"]) {
+    Ok((@cli.Dump(0), _)) => ()
+    _ => assert_true(false)
+  }
+}
+
+///|
+test "parse_args_dump_bad_limit" {
+  for
+    argv in [
+      ["moon-npy", "dump", "a.npy", "--limit"], // flag without a value
+      ["moon-npy", "dump", "a.npy", "--limit", "x"], // not a number
+      ["moon-npy", "dump", "a.npy", "--limit", "-1"], // sign is not a digit
+      ["moon-npy", "dump", "a.npy", "--count", "3"], // unknown flag
+      ["moon-npy", "dump", "a.npy", "extra"], // stray positional argument
+    ] {
+    match @cli.parse_args(argv) {
+      Err(msg) => assert_true(msg.contains("usage:"))
+      Ok(_) => assert_true(false)
+    }
+  }
+}
+
+///|
+test "usage_mentions_dump" {
+  match @cli.parse_args(["moon-npy"]) {
+    Err(msg) => assert_true(msg.contains("<inspect|validate|dump>"))
+    Ok(_) => assert_true(false)
+  }
+}
+
 // ---- ExitCode / operational outcome (§13 退出码纪律) ----
 
 ///|
@@ -188,6 +240,110 @@ test "inspect_shares_failure_block" {
   // inspect on a malformed file renders the same ✗ block and exits Invalid (1).
   let junk = Bytes::from_array([b'n', b'o', b't', b'n', b'p', b'y', b'!', b'!'])
   let out = @cli.run_inspect("junk.npy", junk)
+  assert_eq(out.code, @cli.Invalid)
+  assert_true(out.output.has_prefix("✗ junk.npy\n"))
+  assert_true(out.output.contains("InvalidMagic"))
+}
+
+// ---- run_dump: element dump with --limit truncation (plan v0.2 §7, S5) ----
+
+///|
+test "dump_full_within_limit" {
+  let out = @cli.run_dump(
+    "f4_2x3_c_le_v1.npy",
+    load_fixture("f4_2x3_c_le_v1.npy"),
+    10,
+  )
+  assert_eq(out.code, @cli.Success)
+  assert_true(out.output.has_prefix("NPY Dump: f4_2x3_c_le_v1.npy\n"))
+  assert_true(out.output.contains("[0] "))
+  assert_true(out.output.contains("[5] "))
+  assert_false(out.output.contains("[6] "))
+  assert_true(out.output.contains("(showing 6 of 6 elements)"))
+}
+
+///|
+test "dump_respects_limit" {
+  let out = @cli.run_dump("i4.npy", load_fixture("i4_4_c_le_v1.npy"), 2)
+  assert_eq(out.code, @cli.Success)
+  assert_true(out.output.contains("[0] 0"))
+  assert_true(out.output.contains("[1] 1"))
+  assert_false(out.output.contains("[2]"))
+  assert_true(out.output.contains("(showing 2 of 4 elements)"))
+}
+
+///|
+test "dump_limit_above_count_shows_all" {
+  let out = @cli.run_dump("i4.npy", load_fixture("i4_4_c_le_v1.npy"), 100)
+  assert_true(out.output.contains("(showing 4 of 4 elements)"))
+}
+
+///|
+test "dump_zero_limit" {
+  let out = @cli.run_dump("i4.npy", load_fixture("i4_4_c_le_v1.npy"), 0)
+  assert_eq(out.code, @cli.Success)
+  assert_false(out.output.contains("[0]"))
+  assert_true(out.output.contains("(showing 0 of 4 elements)"))
+}
+
+///|
+// Values render through each type's own to_string, so a Double whose fractional
+// part is zero prints without a trailing ".0" -- measured against the real CLI
+// (`moon run cmd/main -- dump tests/fixtures/c8_4_c_le_v1.npy`), which prints
+// "[1] (1, 2)". The pin follows the observed output, not an assumed format.
+test "dump_complex_renders_pair" {
+  let out = @cli.run_dump("c8.npy", load_fixture("c8_4_c_le_v1.npy"), 10)
+  assert_eq(out.code, @cli.Success)
+  assert_true(out.output.contains("(1, 2)"))
+  assert_true(out.output.contains("(3, 6)"))
+}
+
+///|
+test "dump_bool_renders" {
+  let out = @cli.run_dump("b1.npy", load_fixture("b1_4_c_na_v1.npy"), 10)
+  assert_eq(out.code, @cli.Success)
+  assert_true(out.output.contains("[0] true"))
+  assert_true(out.output.contains("[1] false"))
+}
+
+///|
+// S5 claims `dump` works for all 13 element-level dtypes; this table is the
+// evidence. One four-element fixture per dtype, and the pinned first / last
+// values are read from the NumPy oracle (tests/fixtures/expected.json), so the
+// expected rendering comes from real data rather than an assumption. Values
+// print through each type's own to_string, which drops a trailing ".0" -- the
+// float and complex rows below are the measured output, not a guess.
+test "dump_covers_all_13_dtypes" {
+  let cases : Array[(String, String, String)] = [
+    ("b1_4_c_na_v1.npy", "true", "false"),
+    ("i1_4_c_na_v1.npy", "0", "3"),
+    ("i2_4_c_le_v1.npy", "0", "3"),
+    ("i4_4_c_le_v1.npy", "0", "3"),
+    ("i8_4_c_le_v1.npy", "0", "3"),
+    ("u1_4_c_na_v1.npy", "0", "3"),
+    ("u2_4_c_le_v1.npy", "0", "3"),
+    ("u4_4_c_le_v1.npy", "0", "3"),
+    ("u8_4_c_le_v1.npy", "0", "3"),
+    ("f4_4_c_le_v1.npy", "0", "3"),
+    ("f8_4_c_le_v1.npy", "0", "3"),
+    ("c8_4_c_le_v1.npy", "(0, 0)", "(3, 6)"),
+    ("c16_4_c_le_v1.npy", "(0, 0)", "(3, 6)"),
+  ]
+  for i = 0; i < cases.length(); i = i + 1 {
+    let (name, first, last) = cases[i]
+    let out = @cli.run_dump(name, load_fixture(name), 10)
+    assert_eq(out.code, @cli.Success)
+    assert_true(out.output.contains("[0] \{first}"))
+    assert_true(out.output.contains("[3] \{last}"))
+    assert_false(out.output.contains("[4]"))
+    assert_true(out.output.contains("(showing 4 of 4 elements)"))
+  }
+}
+
+///|
+test "dump_invalid_file_shares_failure_block" {
+  let junk = Bytes::from_array([b'n', b'o', b't', b'n', b'p', b'y', b'!', b'!'])
+  let out = @cli.run_dump("junk.npy", junk, 10)
   assert_eq(out.code, @cli.Invalid)
   assert_true(out.output.has_prefix("✗ junk.npy\n"))
   assert_true(out.output.contains("InvalidMagic"))

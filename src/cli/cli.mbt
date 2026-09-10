@@ -1,5 +1,5 @@
 // CLI logic layer (plan §13): pure, IO-free argument parsing and output
-// rendering for the two v1 commands, `inspect` and `validate`. Per §10.2 every
+// rendering for the v1 commands, `inspect` and `validate`, plus the S5 `dump`. Per §10.2 every
 // decision lives here as a testable library function, so cmd/main stays a thin
 // shell that owns only the two side effects a `cmd/main` may own -- reading the
 // file's bytes and setting the process exit status. Nothing in this package
@@ -7,12 +7,15 @@
 // and covered directly by tests/cli_test.mbt.
 
 ///|
-// The two v1 subcommands (§13). `dump` / `convert` / `benchmark` are Stretch
-// (§6) and deliberately absent from the first version. `pub(all)` (like DType /
+// The v1 subcommands (§13) plus the S5 `dump` (plan v0.2 §6 / §7). `convert` /
+// `benchmark` remain Stretch and are deliberately absent. `pub(all)` (like DType /
 // ByteOrder / NpyError) so tests can construct the variants, not just match them.
+// `Dump(Int)` carries the resolved element limit so the pure renderer never has
+// to re-read argv; parse_args owns the default.
 pub(all) enum Subcommand {
   Inspect
   Validate
+  Dump(Int) // S5: element dump, Int = --limit
 } derive(Debug, Eq)
 
 ///|
@@ -54,11 +57,19 @@ pub struct CliOutcome {
 let label_width : Int = 14
 
 ///|
+// Element limit for `dump` when `--limit` is omitted (S5). Ten is the plan's
+// pinned default (v0.2 §7): enough to eyeball a head of data, small enough that
+// `dump` on a real embedding file does not flood the terminal.
+let default_dump_limit : Int = 10
+
+///|
 // Parse C-style argv into a subcommand + path. argv[0] is the exe path, so the
 // subcommand is argv[1] and the file path argv[2] (AGENTS.md §6). Pure: it takes
 // the argv array directly so tests can drive it without @env. Returns
 // Err(usage message) when arguments are missing or the subcommand is unknown;
-// main maps any Err to an Operational (exit 2) outcome.
+// main maps any Err to an Operational (exit 2) outcome. Trailing arguments are
+// never silently ignored: `inspect` / `validate` take exactly a path, and
+// `dump` takes an optional `--limit N` and nothing else.
 pub fn parse_args(argv : Array[String]) -> Result[(Subcommand, String), String] {
   if argv.length() < 3 {
     return Err(usage())
@@ -66,18 +77,66 @@ pub fn parse_args(argv : Array[String]) -> Result[(Subcommand, String), String] 
   let sub = argv[1]
   let path = argv[2]
   if sub == "inspect" {
+    if argv.length() > 3 {
+      return Err(usage())
+    }
     Ok((Inspect, path))
   } else if sub == "validate" {
+    if argv.length() > 3 {
+      return Err(usage())
+    }
     Ok((Validate, path))
+  } else if sub == "dump" {
+    let has_limit_flag = argv.length() == 5 &&
+      argv[3] == "--limit" &&
+      is_digits(argv[4])
+    if argv.length() == 3 {
+      Ok((Dump(default_dump_limit), path))
+    } else if has_limit_flag {
+      match parse_limit(argv[4]) {
+        Some(n) => Ok((Dump(n), path))
+        None => Err(usage())
+      }
+    } else {
+      Err(usage())
+    }
   } else {
     Err("unknown subcommand: \{sub}\n\{usage()}")
   }
 }
 
 ///|
+// Parse a `--limit` value that is_digits() has already accepted. The digits-only
+// check rules out signs, base prefixes and junk, but a decimal literal long
+// enough to overflow the 32-bit Int (AGENTS.md §4) is still possible, and
+// @string.parse_int reports that by raising. A limit that cannot be represented
+// is a usage error -- library code must not trap on input it can still describe
+// (§18 totality).
+fn parse_limit(s : String) -> Int? {
+  try @string.parse_int(s) |> Some catch {
+    _ => None
+  }
+}
+
+///|
 // The one-line usage string shown on a parse failure.
 fn usage() -> String {
-  "usage: moon-npy <inspect|validate> <file.npy>"
+  "usage: moon-npy <inspect|validate|dump> <file.npy> [--limit N]"
+}
+
+///|
+// True when every character is an ASCII digit (and the string is non-empty), so
+// `--limit -1` and `--limit x` are usage errors rather than parse surprises.
+fn is_digits(s : String) -> Bool {
+  if s.is_empty() {
+    return false
+  }
+  for c in s {
+    if c < '0' || c > '9' {
+      return false
+    }
+  }
+  true
 }
 
 ///|
@@ -107,6 +166,97 @@ pub fn run_validate(path : String, data : Bytes) -> CliOutcome {
       CliOutcome::{ output: "✓ \{path} is a valid NPY file", code: Success, }
     Err(e) => CliOutcome::{ output: render_failure(path, e), code: Invalid, }
   }
+}
+
+///|
+// dump: decode the payload, then render the first min(limit, element_count)
+// elements in storage order (S5). A parse or decode failure reuses the same ✗
+// block and Invalid exit code as inspect, so the three commands agree on what a
+// bad file looks like. The accessors materialize every element before the
+// renderer truncates, so dumping a very large array is the S4 chunk API's job;
+// the README says so where dump is documented.
+pub fn run_dump(path : String, data : Bytes, limit : Int) -> CliOutcome {
+  match @reader.decode(data) {
+    Ok(arr) =>
+      match dump_values(arr) {
+        Ok(values) =>
+          CliOutcome::{
+            output: render_dump(path, values, limit),
+            code: Success,
+          }
+        Err(e) =>
+          CliOutcome::{ output: render_failure(path, e), code: Invalid, }
+      }
+    Err(e) => CliOutcome::{ output: render_failure(path, e), code: Invalid, }
+  }
+}
+
+///|
+// Turn one accessor result into display strings, keeping the Ok / Err shape of
+// every dtype branch identical. A closure parameter rather than a trait bound
+// because the dtypes render differently (complex is a pair).
+fn[T] render_all(
+  res : Result[Array[T], @error.NpyError],
+  show_value : (T) -> String,
+) -> Result[Array[String], @error.NpyError] {
+  match res {
+    Ok(vals) => {
+      let out : Array[String] = []
+      for v in vals {
+        out.push(show_value(v))
+      }
+      Ok(out)
+    }
+    Err(e) => Err(e)
+  }
+}
+
+///|
+// Per-dtype element extraction, each value pre-rendered to its display string.
+// The match is exhaustive over all 13 dtypes on purpose: unlike the rest of the
+// CLI there is no sensible "not supported yet" here, and a future dtype must
+// fail the build rather than degrade into an UnsupportedDType row. The
+// rendering closure is written out per branch rather than shared through a
+// `let` -- MoonBit does not generalize a local binding over `T`, so one
+// polymorphic `digits` value would be pinned to the first dtype that used it.
+fn dump_values(
+  arr : @reader.NpyArray,
+) -> Result[Array[String], @error.NpyError] {
+  match arr.dtype {
+    @dtype.Bool => render_all(arr.to_bool(), fn(v) { v.to_string() })
+    @dtype.Int8 => render_all(arr.to_i8(), fn(v) { v.to_string() })
+    @dtype.Int16 => render_all(arr.to_i16(), fn(v) { v.to_string() })
+    @dtype.Int32 => render_all(arr.to_i32(), fn(v) { v.to_string() })
+    @dtype.Int64 => render_all(arr.to_i64(), fn(v) { v.to_string() })
+    @dtype.UInt8 => render_all(arr.to_u8(), fn(v) { v.to_string() })
+    @dtype.UInt16 => render_all(arr.to_u16(), fn(v) { v.to_string() })
+    @dtype.UInt32 => render_all(arr.to_u32(), fn(v) { v.to_string() })
+    @dtype.UInt64 => render_all(arr.to_u64(), fn(v) { v.to_string() })
+    @dtype.Float32 => render_all(arr.to_f32(), fn(v) { v.to_string() })
+    @dtype.Float64 => render_all(arr.to_f64(), fn(v) { v.to_string() })
+    @dtype.Complex64 =>
+      render_all(arr.to_c64(), fn(z : @dtype.Complex) { "(\{z.re}, \{z.im})" })
+    @dtype.Complex128 =>
+      render_all(arr.to_c16(), fn(z : @dtype.Complex) { "(\{z.re}, \{z.im})" })
+  }
+}
+
+///|
+// The dump block: the "NPY Dump: <path>" title and the same 26-character rule as
+// inspect, then "[i] value" for the first min(limit, length) entries, then the
+// count row (§13 table style reused for S5). The total comes from the rendered
+// values rather than meta.element_count so no Int64 -> Int narrowing is needed:
+// decode() has already reconciled payload_len with element_count * itemsize, and
+// payload_len is bounded by the file size, so the two counts always agree here.
+fn render_dump(path : String, values : Array[String], limit : Int) -> String {
+  let total = values.length()
+  let shown = if limit < total { limit } else { total }
+  let lines : Array[String] = ["NPY Dump: \{path}", table_rule()]
+  for i = 0; i < shown; i = i + 1 {
+    lines.push("[\{i}] \{values[i]}")
+  }
+  lines.push("(showing \{shown} of \{total} elements)")
+  join_lines(lines)
 }
 
 ///|
