@@ -3,7 +3,7 @@
     "numpy": "2.3.4",
     "python": "3.14.0",
     "generator": "interoperability/generate_fixtures.py",
-    "spec_ref": "moon-npy-plan-v0.2.md \u00a715/\u00a716, \u9644\u5f55 A",
+    "spec_ref": "docs/spec/acceptance.md \u00a715/\u00a716, \u9644\u5f55 A",
     "deterministic": true,
     "note": "\u5b57\u6bb5\u5168\u90e8\u89e3\u6790\u81ea numpy \u771f\u5b9e\u4ea7\u7269\uff1b\u91cd\u8dd1\uff08\u540c numpy \u7248\u672c\uff09\u5b57\u8282\u4e00\u81f4\u3002"
   },

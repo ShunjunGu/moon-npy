@@ -1,7 +1,8 @@
 # CI for moon-npy — a Pure MoonBit reader/writer for the NumPy NPY format.
 #
-# Mirrors the §19 pipeline of moon-npy-plan-v0.2.md and the local three-gate
-# discipline (fmt / check / test) recorded in AGENTS.md §8, then closes the
+# Mirrors the §19 pipeline of docs/spec/acceptance.md (the in-repo spec owner) and
+# the local three-gate discipline (fmt / check / test) recorded in AGENTS.md §8,
+# then closes the
 # cross-language loop that `moon test` alone cannot reach:
 #
 #   NumPy fixtures -> MoonBit reads -> MoonBit re-emits -> NumPy verifies

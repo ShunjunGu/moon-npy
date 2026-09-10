@@ -1,8 +1,8 @@
 # interoperability/ — NumPy 兼容性 Oracle
 
 本目录是 moon-npy 的**跨语言兼容性验证层**。moon-npy 是 Pure MoonBit 的 NPY 读写库，
-不重新实现 NumPy；正确性以**当前 NumPy 的实际行为**为唯一 Oracle（计划 §15/§16/§21，
-字节证据见 `../../moon-npy-plan-v0.2.md` 附录 A）。
+不重新实现 NumPy；正确性以**当前 NumPy 的实际行为**为唯一 Oracle（验收边界规范 §15/§16/§21，
+字节证据见仓库内 spec owner `../docs/spec/acceptance.md` 附录 A）。
 
 ## 锁定版本（可复现，§19）
 

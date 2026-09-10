@@ -528,6 +528,10 @@ MoonBit `0.1.20260827+d0aaa07` / NumPy `2.3.4` / Python `3.14`，依次跑：`mo
 （inspect / validate / dump + 退出码 0/1/2，含 `--limit` 截断与坏 `--limit` → 2）。README 展示的
 例子即 CI 实际运行的例子（§19 铁律）。
 
+本 README 与治理文件中出现的 `§N` / `附录 A` 验收边界（字节契约、退出码、覆盖率阈值、CI 门禁、
+第一阶段 DoD）以仓库内 spec owner [`docs/spec/acceptance.md`](docs/spec/acceptance.md) 为权威定义，
+其 §编号与本文一致，克隆内即可解析。
+
 ## 许可证（License）
 
 Apache-2.0 — 见 [`LICENSE`](LICENSE)。

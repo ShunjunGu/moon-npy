@@ -7,7 +7,7 @@ generate_fixtures.py — moon-npy 兼容性 Oracle fixture 生成器
 fortran_order / header_len / data_offset / checksum / values），作为 MoonBit
 Reader / Writer 测试与 CI 的 ground-truth Oracle。
 
-设计原则（对应计划 §15 / §16 / §19 / §21，字节证据见附录 A）：
+设计原则（对应仓库内 spec owner `docs/spec/acceptance.md` §15 / §16 / §19 / §21，字节证据见附录 A）：
   * Oracle = NumPy 真实行为。expected.json 的一切字段都从产物解析得来，不手写、
     不臆测（§21：以 NumPy 实现行为为准，而非机械照搬早期 NEP）。
   * 确定性输出。不嵌入时间戳；相同 numpy 版本重跑 → 字节一致的 .npy 与
@@ -338,7 +338,7 @@ def generate(specs: list[Spec], out_dir: Path) -> dict:
             "numpy": np.__version__,
             "python": platform.python_version(),
             "generator": "interoperability/generate_fixtures.py",
-            "spec_ref": "moon-npy-plan-v0.2.md §15/§16, 附录 A",
+            "spec_ref": "docs/spec/acceptance.md §15/§16, 附录 A",
             "deterministic": True,
             "note": "字段全部解析自 numpy 真实产物；重跑（同 numpy 版本）字节一致。",
         },
