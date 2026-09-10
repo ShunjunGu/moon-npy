@@ -92,11 +92,13 @@ test "parse_dtype_reject_object" {
 
 ///|
 test "parse_dtype_reject_unsupported" {
-  // Well-formed descrs of kinds/widths we deliberately do not decode.
+  // Well-formed descrs of kinds/widths we deliberately do not decode. `<c8` /
+  // `<c16` left this list with S1 (they are supported now); the complex *kind*
+  // stays rejected at other widths, and complex256 (`C16`) is still out of scope.
   for
     descr in [
-      "<c8", "<S3", "<U4", "<V8", "<M8", "<m4", "<g16", "|a1", "<e2", "<f2", "<i3",
-      "<u5",
+      "<c4", "<c2", "<C16", "<S3", "<U4", "<V8", "<M8", "<m4", "<g16", "|a1", "<e2",
+      "<f2", "<i3", "<u5",
     ] {
     match @dtype.parse_dtype(descr) {
       Err(@error.UnsupportedDType(_)) => ()
@@ -125,4 +127,23 @@ test "parse_dtype_reject_bad_endian" {
       _ => assert_true(false)
     }
   }
+}
+
+///|
+test "parse_dtype_complex" {
+  // S1: complex64 (2 x f32) and complex128 (2 x f64), both endian forms.
+  expect_dtype("<c8", @dtype.Complex64, @dtype.Little)
+  expect_dtype(">c8", @dtype.Complex64, @dtype.Big)
+  expect_dtype("<c16", @dtype.Complex128, @dtype.Little)
+  expect_dtype(">c16", @dtype.Complex128, @dtype.Big)
+}
+
+///|
+test "complex_dtype_facts" {
+  assert_eq(@dtype.itemsize(@dtype.Complex64), 8)
+  assert_eq(@dtype.itemsize(@dtype.Complex128), 16)
+  assert_eq(@dtype.name(@dtype.Complex64), "complex64")
+  assert_eq(@dtype.name(@dtype.Complex128), "complex128")
+  assert_eq(@dtype.descr_code(@dtype.Complex64), "c8")
+  assert_eq(@dtype.descr_code(@dtype.Complex128), "c16")
 }

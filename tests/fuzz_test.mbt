@@ -21,9 +21,11 @@
 
 ///|
 // Length of the flat accessor matching arr's own dtype. DType is a closed
-// pub(all) enum of exactly 11 decodable variants (object arrays are refused in
+// pub(all) enum of exactly 13 decodable variants (object arrays are refused in
 // parse_dtype), so this match is exhaustive and the chosen accessor always
-// returns Ok -- the unwrap cannot abort here.
+// returns Ok -- the unwrap cannot abort here. The complex arms use
+// `element_count` directly: reader.to_c64/to_c128 (Task 3) return exactly
+// `element_count` items on the Ok path, so the §18 invariant is just as strong.
 fn accessor_length(arr : @reader.NpyArray) -> Int {
   match arr.dtype {
     @dtype.Bool => arr.to_bool().unwrap().length()
@@ -37,6 +39,7 @@ fn accessor_length(arr : @reader.NpyArray) -> Int {
     @dtype.UInt64 => arr.to_u64().unwrap().length()
     @dtype.Float32 => arr.to_f32().unwrap().length()
     @dtype.Float64 => arr.to_f64().unwrap().length()
+    @dtype.Complex64 | @dtype.Complex128 => arr.element_count.to_int()
   }
 }
 

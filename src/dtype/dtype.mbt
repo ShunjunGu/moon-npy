@@ -22,6 +22,8 @@ pub(all) enum DType {
   UInt64
   Float32
   Float64
+  Complex64 // <c8 / >c8 -- 2 x f32 (real, imag), plan v0.2 §6 S1
+  Complex128 // <c16 / >c16 -- 2 x f64 (real, imag), plan v0.2 §6 S1
 } derive(Debug, Eq)
 
 ///|
@@ -40,6 +42,8 @@ pub fn itemsize(dt : DType) -> Int {
     Int64 => 8
     UInt64 => 8
     Float64 => 8
+    Complex64 => 8
+    Complex128 => 16
   }
 }
 
@@ -58,6 +62,8 @@ pub fn name(dt : DType) -> String {
     UInt64 => "uint64"
     Float32 => "float32"
     Float64 => "float64"
+    Complex64 => "complex64"
+    Complex128 => "complex128"
   }
 }
 
@@ -78,16 +84,19 @@ pub fn descr_code(dt : DType) -> String {
     UInt64 => "u8"
     Float32 => "f4"
     Float64 => "f8"
+    Complex64 => "c8"
+    Complex128 => "c16"
   }
 }
 
 ///|
 // NumPy dtype kinds that are well-formed but deliberately not decoded here
-// (complex / bytes / str / void / datetime / timedelta / longdouble /
-// platform-long). Recognizing them lets parse_dtype report UnsupportedDType
+// (bytes / str / void / datetime / timedelta / longdouble / platform-long, plus
+// complex256). Recognizing them lets parse_dtype report UnsupportedDType
 // (a valid dtype we skip) rather than InvalidDType (a malformed descr), per §12.
+// 'c' is absent: complex64/128 are decoded since S1 (plan v0.2 §6); the
+// uppercase 'C' (complex256) stays here.
 fn is_known_unsupported_kind(kind : Char) -> Bool {
-  kind == 'c' ||
   kind == 'C' ||
   kind == 'S' ||
   kind == 'a' ||
@@ -140,6 +149,13 @@ fn kind_size_to_dtype(
       4 => Ok(Float32)
       8 => Ok(Float64)
       // half (2) / longdouble (12, 16): valid NumPy widths, not supported here
+      _ => Err(@error.UnsupportedDType(descr))
+    }
+  } else if kind == 'c' {
+    match size {
+      8 => Ok(Complex64)
+      16 => Ok(Complex128)
+      // complex256 is kind 'C'; other widths are not NumPy complex itemsize
       _ => Err(@error.UnsupportedDType(descr))
     }
   } else if is_known_unsupported_kind(kind) {
