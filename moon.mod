@@ -1,7 +1,7 @@
 // moon-npy module manifest (syntax verified vs m0smoke, moon 0.1.20260827).
 name = "ShunjunGu/moon-npy"
 
-version = "0.2.0"
+version = "0.3.0"
 
 readme = "README.md"
 
