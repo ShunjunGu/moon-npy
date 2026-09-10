@@ -252,3 +252,62 @@ test "decode_rejects_empty" {
     _ => assert_true(false)
   }
 }
+
+// ---- S4 streaming chunk reads: to_f32_chunk / to_f64_chunk (§29 Demo) ----
+
+///|
+test "chunk_middle_window" {
+  // A window in the middle of the storage order, i.e. the row-slice case the
+  // embeddings demo needs: elements [2, 4) of <f4 (2,3) holding 0..5.
+  let a = decode_fixture("f4_2x3_c_le_v1.npy")
+  let got = a.to_f32_chunk(2, 2).unwrap()
+  assert_eq(got.length(), 2)
+  assert_eq(got[0].to_double(), 2.0)
+  assert_eq(got[1].to_double(), 3.0)
+}
+
+///|
+test "chunk_full_equals_flat" {
+  // The (0, count) window must agree with the whole-array accessor element for
+  // element -- the delegation in flat/flat_range cannot drift silently.
+  let a = decode_fixture("f4_2x3_c_le_v1.npy")
+  assert_eq(a.to_f32_chunk(0, 6).unwrap(), a.to_f32().unwrap())
+  let b = decode_fixture("f8_4_c_le_v1.npy")
+  assert_eq(b.to_f64_chunk(0, 4).unwrap(), b.to_f64().unwrap())
+}
+
+///|
+test "chunk_empty_window" {
+  let a = decode_fixture("f4_2x3_c_le_v1.npy")
+  assert_eq(a.to_f32_chunk(3, 0).unwrap(), [])
+  // start == element_count with a zero length is the end-of-array cursor, not an
+  // overrun -- it is what a loop reads after the last chunk.
+  assert_eq(a.to_f32_chunk(6, 0).unwrap(), [])
+}
+
+///|
+test "chunk_out_of_range" {
+  let a = decode_fixture("f4_2x3_c_le_v1.npy") // element_count = 6
+  for pair in [(4, 3), (6, 1), (7, 0), (-1, 2), (0, -1), (0, 7)] {
+    match a.to_f32_chunk(pair.0, pair.1) {
+      // The rejected window is echoed back verbatim, negatives included, so a
+      // caller can tell which bound it got wrong.
+      Err(@error.InvalidChunkRange(s, l)) => {
+        assert_eq(s, pair.0)
+        assert_eq(l, pair.1)
+      }
+      _ => assert_true(false)
+    }
+  }
+}
+
+///|
+test "chunk_rejects_wrong_dtype" {
+  // dtype is checked before the window, so a wrong accessor reports the dtype,
+  // not the range, even for a window that would also be out of range.
+  let a = decode_fixture("i4_4_c_le_v1.npy")
+  match a.to_f32_chunk(0, 4) {
+    Err(@error.UnsupportedDType(_)) => ()
+    _ => assert_true(false)
+  }
+}

@@ -148,23 +148,43 @@ pub fn decode(data : Bytes) -> Result[NpyArray, @error.NpyError] {
 
 ///|
 // Shared accessor body: refuse unless the array's dtype is `want`, then decode
-// every element in storage order into a fresh Array[T]. Element i sits at byte
-// i * itemsize of the (already length-validated) payload, so reads never go out
-// of bounds (§18). The result is flat; shape + fortran_order stay as metadata
-// for the consumer to reshape (Q2).
+// every element in storage order into a fresh Array[T]. The result is flat;
+// shape + fortran_order stay as metadata for the consumer to reshape (Q2).
 fn[T] flat(
   arr : NpyArray,
   want : @dtype.DType,
   read : (Bytes, Int, @dtype.ByteOrder) -> T,
 ) -> Result[Array[T], @error.NpyError] {
+  flat_range(arr, want, read, 0, arr.element_count.to_int())
+}
+
+///|
+// Elements [start, start + len) in storage order (S4 streaming read). Element i
+// sits at byte i * itemsize of the (already length-validated) payload, so reads
+// never go out of bounds. The window is checked in Int64 against element_count
+// -- in Int, start + len could overflow into a false pass -- and a bad window is
+// reported as InvalidChunkRange(start, len), never a panic. The dtype check runs
+// first and keeps the whole-array accessors' exact message: a wrong accessor is
+// wrong regardless of the window asked for.
+fn[T] flat_range(
+  arr : NpyArray,
+  want : @dtype.DType,
+  read : (Bytes, Int, @dtype.ByteOrder) -> T,
+  start : Int,
+  len : Int,
+) -> Result[Array[T], @error.NpyError] {
   if arr.dtype != want {
     return Err(@error.UnsupportedDType(arr.header.descr))
   }
+  let start64 = start.to_int64()
+  let len64 = len.to_int64()
+  if start64 < 0L || len64 < 0L || start64 + len64 > arr.element_count {
+    return Err(@error.InvalidChunkRange(start, len))
+  }
   let isz = @dtype.itemsize(arr.dtype)
-  let n = arr.element_count.to_int()
   let out : Array[T] = []
-  for i = 0; i < n; i = i + 1 {
-    out.push(read(arr.data, i * isz, arr.byte_order))
+  for i = 0; i < len; i = i + 1 {
+    out.push(read(arr.data, (start + i) * isz, arr.byte_order))
   }
   Ok(out)
 }
@@ -245,6 +265,31 @@ pub fn NpyArray::to_f64(
   self : NpyArray,
 ) -> Result[Array[Double], @error.NpyError] {
   flat(self, @dtype.Float64, @dtype.read_f64)
+}
+
+///|
+// Streaming float32 window (S4): elements [start, start + len) of an f4 array,
+// for consumers that only need a row at a time. What the window saves is the
+// output Array, not the payload -- decode() already holds the whole data segment
+// in memory, so this is a bounded-allocation API, not laziness. f32 / f64 are the
+// two dtypes the embedding use case reads (§29 Demo); chunk accessors for the
+// other dtypes are deliberately absent until something needs them.
+pub fn NpyArray::to_f32_chunk(
+  self : NpyArray,
+  start : Int,
+  len : Int,
+) -> Result[Array[Float], @error.NpyError] {
+  flat_range(self, @dtype.Float32, @dtype.read_f32, start, len)
+}
+
+///|
+// Streaming float64 window (S4), same contract as to_f32_chunk.
+pub fn NpyArray::to_f64_chunk(
+  self : NpyArray,
+  start : Int,
+  len : Int,
+) -> Result[Array[Double], @error.NpyError] {
+  flat_range(self, @dtype.Float64, @dtype.read_f64, start, len)
 }
 
 ///|
