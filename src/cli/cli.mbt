@@ -423,6 +423,14 @@ pub fn render_error(e : @error.NpyError) -> String {
     // tolerates the negative values this variant is meant to report.
     @error.InvalidChunkRange(start, len) =>
       "InvalidChunkRange\nStart: \{group_digits(start.to_int64())}\nLength: \{group_digits(len.to_int64())}"
+    // NPZ container layer (v0.3.0): member names render verbatim, no
+    // sanitizing -- same policy as UnsupportedDType(descr).
+    @error.NpzBadStructure(msg) => "NpzBadStructure\nDetail: \{msg}"
+    @error.NpzCompressedMember(name) => "NpzCompressedMember\nMember: \{name}"
+    @error.NpzUnsafeMemberName(name) => "NpzUnsafeMemberName\nMember: \{name}"
+    @error.NpzDuplicateMember(name) => "NpzDuplicateMember\nMember: \{name}"
+    @error.NpzZip64Unsupported => "NpzZip64Unsupported"
+    @error.NpzMemberNotFound(name) => "NpzMemberNotFound\nMember: \{name}"
   }
 }
 

@@ -17,4 +17,11 @@ pub(all) enum NpyError {
   UnsupportedObjectArray // descr contains '|O' -> refused (security boundary, §5)
   InvalidByteOrder(Byte)
   InvalidChunkRange(Int, Int) // (start, length) out of range / negative (S4)
+  // ---- NPZ container layer (v0.3.0, read-only stored archives) ----
+  NpzBadStructure(String) // malformed EOCD / central dir / local header / encrypted member
+  NpzCompressedMember(String) // member uses a non-stored compression method (security boundary)
+  NpzUnsafeMemberName(String) // path traversal or absolute path in member name (security boundary)
+  NpzDuplicateMember(String) // duplicate member name (zip-shadowing attack surface)
+  NpzZip64Unsupported // EOCD/CD fields carry zip64 sentinels; >4GB archives out of scope
+  NpzMemberNotFound(String) // NpzArchive::get() lookup miss (decode_npz never raises it)
 } derive(Debug)

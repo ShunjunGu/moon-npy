@@ -5,6 +5,7 @@ import {
   "ShunjunGu/moon-npy/src/dtype",
   "ShunjunGu/moon-npy/src/reader",
   "ShunjunGu/moon-npy/src/writer",
+  "ShunjunGu/moon-npy/src/npz",
   "ShunjunGu/moon-npy/src/cli",
   "ShunjunGu/moon-npy/src/adapter/moonnum",
   "amor2025/moonNum/src/core",
