@@ -24,7 +24,7 @@
 // pub(all) enum of exactly 13 decodable variants (object arrays are refused in
 // parse_dtype), so this match is exhaustive and the chosen accessor always
 // returns Ok -- the unwrap cannot abort here. The complex arms use
-// `element_count` directly: reader.to_c64/to_c128 (Task 3) return exactly
+// `element_count` directly: reader.to_c64/to_c16 (Task 3) return exactly
 // `element_count` items on the Ok path, so the §18 invariant is just as strong.
 fn accessor_length(arr : @reader.NpyArray) -> Int {
   match arr.dtype {
