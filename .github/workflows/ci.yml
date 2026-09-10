@@ -141,20 +141,28 @@ jobs:
       - name: NumPy -> MoonBit -> NumPy round-trip
         run: python interoperability/roundtrip.py -v
 
-      # CLI smoke + exit-code discipline (§13) — the README's inspect/validate
+      # CLI smoke + exit-code discipline (§13) — the README's inspect/validate/dump
       # commands, run for real. `moon run` propagates the child's status, so the
       # extern "c" exit_with is exercised end-to-end: a valid fixture exits 0, a
       # readable non-NPY file (README.md) exits 1 (InvalidMagic), a missing file
       # exits 2. The two non-zero codes must stay distinct (§13 退出码纪律).
-      - name: CLI inspect / validate + exit codes
+      # The dump greps use -F because they pin measured output, not an assumed
+      # format: Float to_string drops a trailing ".0", so the complex pair prints
+      # as "(1, 2)" and the element rows as "[0] 0" (AGENTS.md §19).
+      - name: CLI inspect / validate / dump + exit codes
         run: |
           moon run cmd/main --target native -- inspect tests/fixtures/f4_2x3_c_le_v1.npy
           moon run cmd/main --target native -- validate tests/fixtures/f4_2x3_c_le_v1.npy
+          moon run cmd/main --target native -- dump tests/fixtures/f4_2x3_c_le_v1.npy --limit 2 | grep -F "(showing 2 of 6 elements)"
+          moon run cmd/main --target native -- dump tests/fixtures/c8_4_c_le_v1.npy | grep -F "(1, 2)"
           set +e
           moon run cmd/main --target native -- validate README.md
           invalid=$?
           moon run cmd/main --target native -- validate does_not_exist.npy
           missing=$?
+          moon run cmd/main --target native -- dump tests/fixtures/f4_2x3_c_le_v1.npy --limit x
+          bad_limit=$?
           set -e
           test "$invalid" -eq 1
           test "$missing" -eq 2
+          test "$bad_limit" -eq 2

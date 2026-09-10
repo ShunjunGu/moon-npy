@@ -37,13 +37,14 @@ Python FFI**。它是一个*格式互操作层*，**不是** NumPy 的重新实�
 | **M2** dtype codec + Reader（decode → 类型化数组） | ✅ `src/dtype/`, `src/reader/` |
 | **M3** Writer（encode → 字节级对齐 `np.save`） | ✅ `src/writer/` |
 | **M4** `NumPy → MoonBit → NumPy` 字节级双向 round-trip + CI | ✅ **31/31**（第一阶段硬目标达成，§23） |
-| **CLI**（`inspect` / `validate`） | ✅ `src/cli/`, `cmd/main/`（退出码 0/1/2 `$LASTEXITCODE` 实测） |
-| **M5** 边缘 / Fuzz / 覆盖率（§18 totality、§14 阈值） | ✅ 99 测试全绿；core parser **98.5%**、overall **91.6%**（CI 强制门禁） |
+| **CLI**（`inspect` / `validate` / `dump`） | ✅ `src/cli/`, `cmd/main/`（退出码 0/1/2 `$LASTEXITCODE` 实测） |
+| **M5** 边缘 / Fuzz / 覆盖率（§18 totality、§14 阈值） | ✅ 111 测试全绿；core parser **98.5%**、overall **91.2%**（CI 强制门禁） |
 | **S1** complex64 / complex128 读取（v0.2.0 Stretch，§6） | ✅ `src/dtype/`（`Complex` + `read_c64` / `read_c16`）、`src/reader/`（`to_c64` / `to_c16`） |
+| **S5** CLI `dump [--limit N]`（v0.2.0 Stretch，§6） | ✅ `src/cli/`（`run_dump`，13 个 dtype 全覆盖）、`cmd/main/`（CI 冒烟实测） |
 
 锁定工具链（CI 复现基准）：**MoonBit `0.1.20260827`** · **NumPy `2.3.4`** · Python `3.14`。
-99 个单元测试（`moon test --target native`）+ 31 个 fixture 跨语言 round-trip 全绿；覆盖率 core
-parser（format+lexer+parser）**98.5%**、项目 overall **91.6%**（CI 强制阈值 ≥90% / ≥80%）。
+111 单元测试（`moon test --target native`）+ 31 个 fixture 跨语言 round-trip 全绿；覆盖率 core
+parser（format+lexer+parser）**98.5%**、项目 overall **91.2%**（CI 强制阈值 ≥90% / ≥80%）。
 
 ## 特性（Features）
 
@@ -55,7 +56,8 @@ parser（format+lexer+parser）**98.5%**、项目 overall **91.6%**（CI 强制�
   字节对齐、空格填充、`\n` 收尾）；已验证至 300 KB payload。
 - ✅ **互操作** — `NumPy → MoonBit → NumPy` 双向 round-trip，`np.array_equal` + 逐字节校验，
   31 个 fixture 全通过。
-- ✅ **CLI** — `inspect <file.npy>`（元数据表）/ `validate <file.npy>`（`✓`/`✗` 判定）；退出码
+- ✅ **CLI** — `inspect <file.npy>`（元数据表）/ `validate <file.npy>`（`✓`/`✗` 判定）/
+  `dump <file.npy> [--limit N]`（逐元素值，默认前 10 个）；退出码
   valid→0 / 非法文件→1 / 打不开或用法错→2（§13）。纯逻辑在 `src/cli/`，`cmd/main/` 只做 IO。
 - ✅ **鲁棒性（M5）** — 边缘用例（0-d / N-D、Fortran-order、big-endian、`=` native、空数组、全
   dtype × shape × order × version）+ 确定性 splitmix fuzz（§18 totality：任意 `Bytes` → `decode` /
@@ -187,6 +189,8 @@ python interoperability/generate_fixtures.py --full    # §15 完整矩阵
 ```bash
 moon run cmd/main --target native -- inspect  tests/fixtures/f4_2x3_c_le_v1.npy
 moon run cmd/main --target native -- validate tests/fixtures/f4_2x3_c_le_v1.npy
+moon run cmd/main --target native -- dump     tests/fixtures/c8_4_c_le_v1.npy
+moon run cmd/main --target native -- dump     tests/fixtures/f4_2x3_c_le_v1.npy --limit 3
 ```
 
 `inspect` 打印元数据表（标签列宽 14，`Data size` 用二进制单位、两位小数）：
@@ -207,7 +211,37 @@ Status        valid
 ```
 
 `validate` 成功打印 `✓ <file> is a valid NPY file`，失败打印 `✗ <file>` + 结构化错误。
-**退出码纪律**：valid → 0；文件非法（任一 `NpyError`）→ 1；文件打不开 / 用法错误 → 2
+
+`dump` 按 storage order 逐元素打印值，默认最多 10 个，`--limit N` 可调（`0` 合法，只留统计行）；
+末尾恒为 `(showing K of N elements)`。两个例子（下方输出为 `moon run` 实测，与 CI 冒烟所 grep 的
+一致）：
+
+```text
+NPY Dump: tests/fixtures/c8_4_c_le_v1.npy
+──────────────────────────
+[0] (0, 0)
+[1] (1, 2)
+[2] (2, 4)
+[3] (3, 6)
+(showing 4 of 4 elements)
+```
+
+```text
+NPY Dump: tests/fixtures/f4_2x3_c_le_v1.npy
+──────────────────────────
+[0] 0
+[1] 1
+[2] 2
+(showing 3 of 6 elements)
+```
+
+值走每个类型自己的 `to_string`，因此 **`Float` / `Double` 会省略尾随的 `.0`**——`1.0` 打印为
+`1`，complex 打印为 `(1, 2)`。`dump` 覆盖全部 13 个元素级 dtype（表驱动证据测试
+`dump_covers_all_13_dtypes` 的 pin 取自 NumPy Oracle）；它先把全量 payload 解码成内存数组
+再截断，所以 `--limit` 省的是输出行数，不是内存。
+
+**退出码纪律**：valid → 0；文件非法（任一 `NpyError`）→ 1；文件打不开 / 用法错误（包括
+`--limit` 缺值或非数字）→ 2
 （两类非 0 码互不混淆，便于脚本区分「坏文件」与「坏调用」）。
 
 ## 库 API（Library API）
@@ -250,11 +284,12 @@ pub fn NpyArray::to_c16(self) -> Result[Array[Complex], NpyError] // complex128�
 pub fn encode(array : NpyArray) -> Result[Bytes, NpyError]
 
 // src/cli — 纯参数解析 + 输出渲染（无 IO）
-pub(all) enum Subcommand { Inspect; Validate }
+pub(all) enum Subcommand { Inspect; Validate; Dump(Int) }
 pub(all) enum ExitCode { Success; Invalid; Operational }  // 0 / 1 / 2
 pub fn parse_args(argv : Array[String]) -> Result[(Subcommand, String), String]
 pub fn run_inspect(path : String, data : Bytes) -> CliOutcome
 pub fn run_validate(path : String, data : Bytes) -> CliOutcome
+pub fn run_dump(path : String, data : Bytes, limit : Int) -> CliOutcome  // 全 13 个 dtype（v0.2.0 S5）
 pub fn render_error(e : NpyError) -> String
 
 // src/error — 12 个结构化错误构造子
@@ -291,7 +326,7 @@ pub(all) enum NpyError {
     └──►  writer.encode(NpyArray) → Bytes         （字节级对齐 np.save）
 
   error     enum NpyError（12 构造子）贯穿所有层的 Result 失败通道
-  cli       parse_args · run_inspect · run_validate · render_error（纯逻辑，可黑盒测试）
+  cli       parse_args · run_inspect · run_validate · run_dump · render_error（纯逻辑，可黑盒测试）
     │
     ▼
   cmd/main  薄壳：@fs 读字节 + extern "c" exit 设退出码（唯一 IO 边界）
@@ -311,9 +346,9 @@ moon-npy/
 │   ├── reader/            # decode(Bytes) -> NpyArray
 │   ├── writer/            # encode(NpyArray) -> Bytes（字节级对齐 np.save）
 │   ├── error/             # enum NpyError + Result
-│   └── cli/               # inspect / validate 纯逻辑（parse_args + 渲染，无 IO）
+│   └── cli/               # inspect / validate / dump 纯逻辑（parse_args + 渲染，无 IO）
 ├── cmd/main/              # CLI 可执行薄壳（@fs 读字节 + extern "c" exit 设退出码）
-├── tests/                 # *_test.mbt（99，含 edge / fuzz / security / property）+ fixtures/（*.npy + expected.json）
+├── tests/                 # *_test.mbt（111，含 edge / fuzz / security / property）+ fixtures/（*.npy + expected.json）
 ├── interoperability/      # generate_fixtures.py / verify_moonbit_output.py / roundtrip.py
 ├── examples/roundtrip/    # emit harness（decode -> encode -> write，`moon run`）
 └── .github/workflows/     # ci.yml（§19：fmt/check/test/coverage/fixture/round-trip）
@@ -377,14 +412,14 @@ NPY 的 object 数组以 Python pickle 为载荷——加载它可能执行任�
 ```bash
 moon fmt                                   # 格式化（CI 用 git diff --exit-code 强制无改动）
 moon check --target native                 # 类型检查
-moon test --target native                  # 99 单元测试
+moon test --target native                  # 111 单元测试
 ```
 
 **覆盖率**（CI 强制阈值门禁：core parser ≥90% / overall ≥80%，未达即失败）：
 
 ```bash
 moon test --target native --enable-coverage; moon coverage analyze
-moon coverage report -f summary            # 当前 core parser 98.5%、overall 91.6%
+moon coverage report -f summary            # 当前 core parser 98.5%、overall 91.2%
 ```
 
 **跨语言互操作**（需 NumPy / Python）：
@@ -408,7 +443,8 @@ python interoperability/roundtrip.py                   # 31 fixture 字节级 ro
 MoonBit `0.1.20260827+d0aaa07` / NumPy `2.3.4` / Python `3.14`，依次跑：`moon fmt`（无 diff）
 → `moon check` → `moon test` → coverage（**强制阈值门禁**：core parser ≥90% / overall ≥80%，未达
 即失败）→ fixture `--check` → `roundtrip.py`（31 fixture emit + verify + byte-exact）→ CLI 冒烟
-（inspect / validate + 退出码 0/1/2）。README 展示的例子即 CI 实际运行的例子（§19 铁律）。
+（inspect / validate / dump + 退出码 0/1/2，含 `--limit` 截断与坏 `--limit` → 2）。README 展示的
+例子即 CI 实际运行的例子（§19 铁律）。
 
 ## 许可证（License）
 

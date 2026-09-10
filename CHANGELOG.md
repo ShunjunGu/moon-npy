@@ -48,6 +48,26 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   89 → **99**；覆盖率 core parser **98.5%**（129/131，不变）、overall **91.3% → 91.6%**
   （557/610 → 579/632，新增代码路径均被覆盖）；`README.md` / `README_CN.md` 的兼容性矩阵、
   库 API、fixture 计数同步（不支持清单里 complex 移出、改列 complex256）。
+- **CLI `dump [--limit N]`（v0.2.0 Stretch S5）** — `src/cli/`：`Subcommand` 新增 `Dump(Int)`，
+  `parse_args` 接受 `dump <file.npy>`（默认上限 **10**）与 `--limit N`（`0` 合法；缺值、非数字、
+  超出 `Int` 可表示范围均归为**用法错误**而非运行时失败——故库代码不 trap（§18 totality），
+  且 `--limit` 的解析走 `@string.parse_int`（`raise` 语义）而非 `to_int`（本 pin 的 `String`
+  无此方法）。`run_dump` 先 `decode`、再把每个元素过它自己类型的 `to_string` 渲染，complex 走
+  S1 的 `to_c64` / `to_c16` 并以 `(re, im)` 打印，覆盖全部 **13** 个元素级 dtype；
+  `render_dump` 截断到 `--limit` 并固定输出末行 `(showing K of N elements)`，失败路径与
+  `inspect` / `validate` 共用同一个 `✗ <file>` + 结构化错误块（退出码仍 0/1/2，坏 `--limit` → 2）。
+  `cmd/main/` 的 match 加 `Dump` 分支，usage 字符串改为 `<inspect|validate|dump>`。
+  **渲染格式以实测为准**：`Float` / `Double` 的 `to_string` 省略尾随 `.0`，所以 CLI 真机输出是
+  `[0] 0` 与 `[1] (1, 2)`，而不是 `1.0` / `(1.0, 2.0)`——测试 pin、README 示例与 CI grep 一律跟随
+  实测，未为实现去凑一个未验证过的格式。
+  单元测试 99 → **111**（4 个 `parse_args` + 7 个 `run_dump` + 一个表驱动的
+  `dump_covers_all_13_dtypes`：13 行表格逐一对齐 NumPy Oracle `expected.json` 的首 / 末值，作为
+  「13 个 dtype 全覆盖」这一宣称的证据，§19）；覆盖率 core parser **98.5%**（129/131，不变）、
+  overall **91.6% → 91.2%**（579/632 → 675/740：分母新增 108 行、覆盖 96 行，故比例微降，仍远高于
+  80% 阈值）。`.github/workflows/ci.yml` 的 CLI 冒烟步骤扩为 `dump --limit 2` grep 截断行、`c8`
+  grep `(1, 2)`（`-F` 字面匹配）、坏 `--limit` 捕获退出码 `== 2`；`README.md` /
+  `README_CN.md` 的 CLI 段粘贴上述真实输出并注明 `dump` 先全量解码再截断（`--limit` 省输出行数、
+  不省内存）。
 
 ### Changed
 
