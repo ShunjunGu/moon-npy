@@ -125,22 +125,15 @@ test "fuzz_valid_prefix_random_body" {
 
 ///|
 test "fuzz_fixture_mutations" {
-  // Distribution (3): corrupt each of the 26 byte-exact Oracle fixtures. These
-  // near-valid blobs reach deep into validate (dtype parse, shape overflow,
-  // payload-length reconciliation) and occasionally still decode Ok, so the typed
-  // accessors run on mutated payloads too -- the highest-yield §18 probe.
+  // Distribution (3): corrupt each byte-exact Oracle fixture, taken from the
+  // shared oracle_fixture_names() list so the fuzz and round-trip suites can
+  // never drift apart. These near-valid blobs reach deep into validate (dtype
+  // parse, shape overflow, payload-length reconciliation) and occasionally
+  // still decode Ok, so the typed accessors run on mutated payloads too -- the
+  // highest-yield §18 probe.
   let rng = @splitmix.new(seed=0xBADC0DEUL)
-  let names = [
-    "b1_4_c_na_v1.npy", "f4_2x3_c_le_v1.npy", "f4_2x3_c_le_v2.npy", "f4_2x3_c_le_v3.npy",
-    "f4_2x3_f_le_v1.npy", "f4_4_c_be_v1.npy", "f4_4_c_le_v1.npy", "f8_4_c_be_v1.npy",
-    "f8_4_c_le_v1.npy", "f8_scalar_c_le_v1.npy", "i1_4_c_na_v1.npy", "i2_2x2x2_c_le_v1.npy",
-    "i2_4_c_be_v1.npy", "i2_4_c_le_v1.npy", "i4_2x3_f_be_v1.npy", "i4_4_c_be_v1.npy",
-    "i4_4_c_le_v1.npy", "i8_4_c_be_v1.npy", "i8_4_c_le_v1.npy", "u1_4_c_na_v1.npy",
-    "u2_4_c_be_v1.npy", "u2_4_c_le_v1.npy", "u4_4_c_be_v1.npy", "u4_4_c_le_v1.npy",
-    "u8_4_c_be_v1.npy", "u8_4_c_le_v1.npy",
-  ]
   let fixtures : Array[Bytes] = []
-  for name in names {
+  for name in oracle_fixture_names() {
     fixtures.push(load_fixture(name))
   }
   for k = 0; k < 3000; k = k + 1 {

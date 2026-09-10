@@ -39,6 +39,23 @@ fn v1_with_body(body : String) -> Bytes {
   Bytes::from_array(arr)
 }
 
+// Canonical names of the byte-exact NumPy Oracle fixtures. Single source of
+// truth for the fuzz mutations, the round-trip property test, and X2 (v0.2.0
+// S1 adds 5 complex fixtures here -- one list, every test follows).
+
+///|
+fn oracle_fixture_names() -> Array[String] {
+  [
+    "b1_4_c_na_v1.npy", "f4_2x3_c_le_v1.npy", "f4_2x3_c_le_v2.npy", "f4_2x3_c_le_v3.npy",
+    "f4_2x3_f_le_v1.npy", "f4_4_c_be_v1.npy", "f4_4_c_le_v1.npy", "f8_4_c_be_v1.npy",
+    "f8_4_c_le_v1.npy", "f8_scalar_c_le_v1.npy", "i1_4_c_na_v1.npy", "i2_2x2x2_c_le_v1.npy",
+    "i2_4_c_be_v1.npy", "i2_4_c_le_v1.npy", "i4_2x3_f_be_v1.npy", "i4_4_c_be_v1.npy",
+    "i4_4_c_le_v1.npy", "i8_4_c_be_v1.npy", "i8_4_c_le_v1.npy", "u1_4_c_na_v1.npy",
+    "u2_4_c_be_v1.npy", "u2_4_c_le_v1.npy", "u4_4_c_be_v1.npy", "u4_4_c_le_v1.npy",
+    "u8_4_c_be_v1.npy", "u8_4_c_le_v1.npy",
+  ]
+}
+
 // ---- format: manual little-endian assembly (§9.3, AGENTS.md §3 verified) ----
 
 ///|
