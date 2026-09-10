@@ -42,15 +42,17 @@ interop layer*, **not** a re-implementation of NumPy.
 | **M3** Writer（encode → 字节级对齐 `np.save`） | ✅ `src/writer/` |
 | **M4** `NumPy → MoonBit → NumPy` 字节级双向 round-trip + CI | ✅ **31/31**（第一阶段硬目标达成，§23） |
 | **CLI**（`inspect` / `validate` / `dump`） | ✅ `src/cli/`, `cmd/main/`（退出码 0/1/2 `$LASTEXITCODE` 实测） |
-| **M5** 边缘 / Fuzz / 覆盖率（§18 totality、§14 阈值） | ✅ 128 测试全绿；core parser **98.5%**、overall **91.7%**（CI 强制门禁） |
+| **M5** 边缘 / Fuzz / 覆盖率（§18 totality、§14 阈值） | ✅ 156 测试全绿；core parser **98.5%**、overall **92.4%**（CI 强制门禁） |
 | **S1** complex64 / complex128 读取（v0.2.0 Stretch，§6） | ✅ `src/dtype/`（`Complex` + `read_c64` / `read_c16`）、`src/reader/`（`to_c64` / `to_c16`） |
 | **S5** CLI `dump [--limit N]`（v0.2.0 Stretch，§6） | ✅ `src/cli/`（`run_dump`，13 个 dtype 全覆盖）、`cmd/main/`（CI 冒烟实测） |
 | **S4** storage-order 分块读取（v0.2.0 Stretch，§6） | ✅ `src/reader/`（`flat_range` + `to_f32_chunk` / `to_f64_chunk`）、`src/error/` + `src/cli/`（第 13 变体 `InvalidChunkRange` 及其渲染） |
 | **S6** moonNum 生态适配（v0.2.0 Stretch，§6） | ✅ `src/adapter/moonnum/`（读方向 `to_moonnum_f32` / `to_moonnum_f64`）；选型 go/no-go 见 [`docs/s6-api-card.md`](docs/s6-api-card.md) |
+| **C1** NPZ 容器读取（v0.3.0，只读 + 未压缩） | ✅ `src/npz/`（`decode_npz` → `NpzArchive`，`get(name)` / `names()`；压缩 / zip64 / 路径穿越 / 重复成员容器层拒绝） |
 
 Pinned toolchain（CI 复现基准）：**MoonBit `0.1.20260827`** · **NumPy `2.3.4`** · Python `3.14`。
-128 个单元测试（`moon test --target native`）+ 31 fixture 跨语言 round-trip 全绿；覆盖率 core parser
-（format+lexer+parser）**98.5%**、项目 overall **91.7%**（CI 强制阈值 ≥90% / ≥80%）。
+156 个单元测试（`moon test --target native`）+ 31 个 .npy fixture + 3 个 .npz Oracle archive 跨语言
+round-trip 全绿；覆盖率 core parser（format+lexer+parser）**98.5%**、项目 overall **92.4%**
+（CI 强制阈值 ≥90% / ≥80%）。
 
 ## Features
 
@@ -77,6 +79,11 @@ Pinned toolchain（CI 复现基准）：**MoonBit `0.1.20260827`** · **NumPy `2
   dtype × shape × order × version）+ 确定性 splitmix fuzz（§18 totality：任意 `Bytes` → `decode` /
   `validate` 恒返 `Ok` 或结构化 `Err(NpyError)`，绝不 crash / hang / 越界 / 失控分配，7000 次迭代
   全绿）；负面用例在测试代码内合成，逐条钉住每个 `NpyError` 分支。
+- ✅ **NPZ 容器读取（v0.3.0 C1）** — `np.savez` 产出的**未压缩** ZIP 容器只读（`decode_npz` →
+  `NpzArchive`，`get(name)` / `names()`；成员名自动剥 `.npy` 后缀），成员 payload 原样透传给既有
+  NPY decode 路径。五类拒绝均为结构化错误：压缩成员（`NpzCompressedMember`）、路径穿越
+  （`NpzUnsafeMemberName`）、重复成员（`NpzDuplicateMember`）、zip64（`NpzZip64Unsupported`）、
+  结构损坏或加密（`NpzBadStructure`）——见 Security 的容器层小节。
 
 ## Installation
 
@@ -189,8 +196,9 @@ python interoperability/roundtrip.py        # emit(moon run) + verify(numpy) 聚
 
 **不支持**（识别后返回结构化 `UnsupportedDType` / `UnsupportedObjectArray`，而非静默出错）：
 object（`\|O`，**主动拒绝**，见 Security）、half / longdouble（`e`/`g`）、complex256（`C`）、
-bytes / str（`S`/`U`）、void / structured（`V`）、datetime / timedelta（`M`/`m`）。NPZ、
-GGUF / SafeTensors / Parquet 不在范围内（见 Limitations）。
+bytes / str（`S`/`U`）、void / structured（`V`）、datetime / timedelta（`M`/`m`）。GGUF /
+SafeTensors / Parquet 不在范围内；**NPZ** 自 v0.3.0 起支持**未压缩**容器的只读（见 Features），
+压缩 / zip64 / 加密成员在容器层拒绝（见 Security）。
 
 当前入库 fixture 集（**31 个**）：float32 `(2,3)` C-order × v1.0 / v2.0 / v3.0（覆盖 uint16 与
 uint32 两条 header-length 解析路径）+ 全 dtype × 字节序定向矩阵（含 `c8` / `c16` 的 LE / BE 与 2-D
@@ -312,6 +320,13 @@ pub fn NpyArray::to_f64_chunk(self, start : Int, len : Int) -> Result[Array[Doub
 // src/writer — 序列化回字节级对齐 np.save 的 NPY
 pub fn encode(array : NpyArray) -> Result[Bytes, NpyError]
 
+// src/npz — NPZ（np.savez ZIP 容器）读取：只读 + 未压缩（v0.3.0 C1）
+pub struct NpzArchive { members : Array[NpzMember] } // 成员序 = central directory 序
+pub(all) struct NpzMember { name : String; array : @reader.NpyArray } // name 已剥 .npy 后缀
+pub fn decode_npz(data : Bytes) -> Result[NpzArchive, NpyError]
+pub fn NpzArchive::get(self, name : String) -> Result[NpzMember, NpyError]
+pub fn NpzArchive::names(self) -> Array[String]
+
 // src/cli — 纯参数解析 + 输出渲染（无 IO）
 pub(all) enum Subcommand { Inspect; Validate; Dump(Int) }
 pub(all) enum ExitCode { Success; Invalid; Operational }  // 0 / 1 / 2
@@ -321,12 +336,15 @@ pub fn run_validate(path : String, data : Bytes) -> CliOutcome
 pub fn run_dump(path : String, data : Bytes, limit : Int) -> CliOutcome  // 全 13 个 dtype（v0.2.0 S5）
 pub fn render_error(e : NpyError) -> String
 
-// src/error — 13 个结构化错误构造子
+// src/error — 19 个结构化错误构造子（13 NPY + 6 NPZ）
 pub(all) enum NpyError {
   InvalidMagic; UnsupportedVersion(Int, Int); TruncatedHeader; InvalidHeaderLength
   InvalidHeaderSyntax; MissingHeaderField(String); InvalidDType(String); UnsupportedDType(String)
   ShapeOverflow; DataLengthMismatch(Int64, Int64); UnsupportedObjectArray
   InvalidByteOrder(Byte); InvalidChunkRange(Int, Int)
+  // v0.3.0 C1 NPZ 容器层
+  NpzBadStructure(String); NpzCompressedMember(String); NpzUnsafeMemberName(String)
+  NpzDuplicateMember(String); NpzZip64Unsupported; NpzMemberNotFound(String)
 }
 ```
 
@@ -401,11 +419,12 @@ nd.get_f32(4) // => 4.0
     ├──►  reader.validate(Bytes) → NpyMeta        （只校验，不解元素）
     ├──►  reader.decode(Bytes)   → NpyArray → to_f32() / to_i64() / …  （惰性类型化访问）
     │                              └─ to_f32_chunk(start, len) / to_f64_chunk：storage-order 窗口（S4）
-    └──►  writer.encode(NpyArray) → Bytes         （字节级对齐 np.save）
+    ├──►  writer.encode(NpyArray) → Bytes         （字节级对齐 np.save）
+    └──►  npz.decode_npz(Bytes) → NpzArchive     （成员透传 reader.decode；只读 + 未压缩，v0.3.0 C1）
 
   adapter/moonnum  NpyArray → moonNum NdArray（S6，读方向，f32/f64 LE；失败用适配器自己的 AdapterError）
 
-  error     enum NpyError（13 构造子）贯穿所有层的 Result 失败通道
+  error     enum NpyError（19 构造子：13 NPY + 6 NPZ）贯穿所有层的 Result 失败通道
   cli       parse_args · run_inspect · run_validate · run_dump · render_error（纯逻辑，可黑盒测试）
     │
     ▼
@@ -425,11 +444,12 @@ moon-npy/
 │   ├── dtype/             # dtype codec + endian
 │   ├── reader/            # decode(Bytes) -> NpyArray
 │   ├── writer/            # encode(NpyArray) -> Bytes（字节级对齐 np.save）
+│   ├── npz/               # NPZ ZIP 容器读取（np.savez；只读 + 未压缩，v0.3.0 C1）
 │   ├── error/             # enum NpyError + Result
 │   ├── cli/               # inspect / validate / dump 纯逻辑（parse_args + 渲染，无 IO）
 │   └── adapter/moonnum/   # S6 读方向适配 amor2025/moonNum（本仓唯一第三方依赖）
 ├── cmd/main/              # CLI 可执行薄壳（@fs 读字节 + extern "c" exit 设退出码）
-├── tests/                 # *_test.mbt（128，含 edge / fuzz / security / property / adapter）+ fixtures/（*.npy + expected.json）
+├── tests/                 # *_test.mbt（156，含 edge / fuzz / security / property / adapter / npz）+ fixtures/（31 *.npy + 3 *.npz + expected.json / npz_expected.json）
 ├── interoperability/      # generate_fixtures.py / verify_moonbit_output.py / roundtrip.py
 ├── examples/roundtrip/    # emit harness（decode -> encode -> write，`moon run`）
 └── .github/workflows/     # ci.yml（§19：fmt/check/test/coverage/fixture/round-trip）
@@ -439,12 +459,13 @@ moon-npy/
 
 范围控制是本项目的第一原则（§5「明确不做什么」）。v0.1.0 有意不实现下列能力；v0.2.0 只新增四项
 ——complex64 / complex128 读取（S1）、CLI `dump [--limit N]`（S5）、storage-order 窗口读取（S4）、
-moonNum 读方向适配（S6）——其余范围未扩大：
+moonNum 读方向适配（S6）——v0.3.0 只新增 NPZ 容器读取（C1，只读 + 未压缩），其余范围未扩大：
 
 - **不是 NumPy**：无线性代数 / FFT / 广播 / 矩阵运算，无 Tensor framework / 自动微分 /
   模型加载（PyTorch 等）。moon-npy 只做 `.npy` 二进制**序列化 / 反序列化**。
-- **不做其他格式**：GGUF / SafeTensors / Parquet / **NPZ**（NPZ = ZIP 容器 + 多 NPY，属
-  Stretch，不作比赛核心交付）。
+- **不做其他格式**：GGUF / SafeTensors / Parquet 不在范围内；**NPZ** 自 v0.3.0 起只做**读方向、
+  未压缩**容器（C1），`savez` 写方向、deflate 解压、zip64 仍不实现（见 Security 容器层小节的
+  by-construction 理由）。
 - **dtype 范围**：13 个 dtype —— 11 种 primitive numeric + complex64 / complex128（见
   Compatibility Matrix）。**object dtype 主动拒绝**；half / longdouble / complex256 / bytes /
   str / void / structured / datetime / timedelta 识别后返回 `UnsupportedDType`（结构化，非崩溃）。
@@ -484,6 +505,26 @@ variant, and never partially.
 
 Mechanics backing those claims (all exercised by `moon test`):
 
+### NPZ container layer (v0.3.0 C1)
+
+The same by-construction discipline extends to the ZIP container reader in
+`src/npz/`:
+
+- **No inflate implementation — the decompression-bomb attack surface does not
+  exist.** `decode_npz` accepts only members whose compression method is
+  *stored* (method 0); anything else is refused with `NpzCompressedMember`
+  before any payload byte is touched. The codebase contains no decompressor,
+  so a zip bomb cannot be inflated by this library — the surface is absent,
+  not defended against.
+- **Path traversal cannot happen.** Member names are compared against the
+  central directory as plain strings and are never used to build filesystem
+  paths; any name containing a path separator or an absolute-path prefix is
+  refused with `NpzUnsafeMemberName`.
+- **Duplicate member names are refused** (`NpzDuplicateMember`), closing the
+  classic zip-shadowing ambiguity; zip64 archives are refused
+  (`NpzZip64Unsupported`) rather than partially trusted; encrypted members
+  fall under `NpzBadStructure`.
+
 - **Overflow-guarded arithmetic (§9.2 / B2)**: MoonBit `Int` is 32-bit and
   wraps, so shape products, `element_count` and byte counts are held in
   `Int64` / `UInt64` with a check at every step → `ShapeOverflow`, never a
@@ -506,14 +547,14 @@ Mechanics backing those claims (all exercised by `moon test`):
 ```bash
 moon fmt                                   # 格式化（CI 用 git diff --exit-code 强制无改动）
 moon check --target native                 # 类型检查
-moon test --target native                  # 128 个单元测试
+moon test --target native                  # 156 个单元测试
 ```
 
 **覆盖率**（CI 强制阈值门禁：core parser ≥90% / overall ≥80%，未达即失败）：
 
 ```bash
 moon test --target native --enable-coverage; moon coverage analyze
-moon coverage report -f summary            # 当前 core parser 98.5%、overall 91.7%
+moon coverage report -f summary            # 当前 core parser 98.5%、overall 92.4%
 ```
 
 **跨语言互操作**（需 NumPy / Python）：

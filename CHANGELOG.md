@@ -6,6 +6,38 @@ The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v0.3.0] - 2026-09-10
+
+v0.3.0 新增 C1：**NPZ 容器读取**（C1）——只读、未压缩的 `np.savez` ZIP 容器，成员 payload 原样
+透传给既有 NPY decode 路径。单元测试 128 → **156**，fixture **31** 个 .npy + **3** 个 .npz
+Oracle archive；覆盖率 `src/npz/` **97.1%**（102/105）、overall **92.4%**（822/890，新增 npz
+包后分母扩大仍高于 v0.2.0 的 91.7%）、core parser **98.5%**（不变）。工具链仍 pin
+MoonBit `0.1.20260827` / NumPy `2.3.4` / Python `3.14`。
+
+### Added
+
+- **NPZ 容器读取（C1）** — `src/npz/` 新包：`decode_npz(Bytes) → Result[NpzArchive, NpyError]`，
+  `NpzArchive::get(name)` / `names()`（成员名自动剥 `.npy` 后缀，成员序 = central directory 序）。
+  EOCD + central directory 解析后逐成员校验，五类拒绝全部为结构化错误：压缩成员
+  （`NpzCompressedMember`）、路径穿越 / 绝对路径（`NpzUnsafeMemberName`）、重复成员
+  （`NpzDuplicateMember`，封死 zip-shadowing）、zip64（`NpzZip64Unsupported`）、结构损坏或加密
+  （`NpzBadStructure`）。`NpyError` 13 → **19** 变体，`render_error` 穷举分支同步；本库无 inflate
+  实现，解压炸弹攻击面 **by construction 不存在**（README Security 容器层小节）。
+- **NPZ Oracle fixtures + drift 门禁（C1）** — `interoperability/generate_fixtures.py` 扩展：
+  `tests/fixtures/` 新增 3 个 NumPy `np.savez` 真实产物（3 成员数组 / 自定义 key / deflate 压缩）
+  与 [`tests/fixtures/npz_expected.json`](tests/fixtures/npz_expected.json)（每 archive / 成员的
+  descr / shape / 值 / sha256 / comp method）；`--check` 门禁同步覆盖 NPZ（CI 同实跑）。
+  `.gitattributes` 补 `*.npz binary`。单元测试 154 → 156（Oracle fixture 断言 ×3 与既有调整）。
+- **NPZ 性质测试（C1）** — `tests/npz_test.mbt`：`savez ≡ save` 等值性质（同一数组的单文件 NPY
+  decode 与容器内 `get("arr_0")` 的 header / element_count / payload 字节全等）+ 31-fixture
+  透传性质（每个 Oracle fixture 包装成伪单成员 npz 后 `decode_npz` 与直读结果字节级一致）。
+
+### Changed
+
+- 文档：`README.md` / `README_CN.md` Status 表新增 C1 行、Features 增 NPZ bullet、Compatibility
+  不支持清单将 NPZ 移出、Library API / error enum / Architecture / Layout 同步、Security 新增
+  「NPZ 容器层」小节（by construction, not by filtering）、Development / CI 数字同步。
+
 ## [v0.2.0] - 2026-09-10
 
 v0.2.0 Stretch 四项全部落地：complex64 / complex128 读取（S1）、CLI `dump [--limit N]`
