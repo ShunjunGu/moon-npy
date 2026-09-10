@@ -168,6 +168,7 @@ pub fn decode_npz(data : Bytes) -> Result[NpzArchive, @error.NpyError] {
     return Err(@error.NpzBadStructure("central directory out of range"))
   }
   let members : Array[NpzMember] = []
+  let seen : Array[String] = []
   let mut pos = cd_offset.to_int()
   for i = 0; i < total_entries; i = i + 1 {
     // Central-directory record: 46 fixed bytes + name + extra + comment.
@@ -181,12 +182,32 @@ pub fn decode_npz(data : Bytes) -> Result[NpzArchive, @error.NpyError] {
     if next > file_len {
       return Err(@error.NpzBadStructure("central directory entry \{i}"))
     }
+    let comp_method = @format.read_u16_le(data, pos + 10)
+    let gp_flags = @format.read_u16_le(data, pos + 8)
     let comp_size = @format.read_u32_le(data, pos + 20)
     let local_offset = @format.read_u32_le(data, pos + 42)
     let name = match
       resolve_member_name(slice_bytes(data, pos + 46, name_len)) {
       Ok(n) => n
       Err(e) => return Err(e)
+    }
+    // Security refusals (v0.3.0 plan §2.2 step 4). Order: compression first
+    // (nothing about a deflated member is safe to reason about), then the
+    // name surface, then duplicates, then encryption.
+    if comp_method != 0 {
+      return Err(@error.NpzCompressedMember(name))
+    }
+    if unsafe_member_name(name) {
+      return Err(@error.NpzUnsafeMemberName(name))
+    }
+    for prior in seen {
+      if prior == name {
+        return Err(@error.NpzDuplicateMember(name))
+      }
+    }
+    seen.push(name)
+    if (gp_flags & 0x0001) != 0 {
+      return Err(@error.NpzBadStructure("encrypted member: \{name}"))
     }
     // Locate the member payload: the local header's own name/extra lengths
     // decide where the data starts (probe fact); the length comes from the
@@ -214,4 +235,22 @@ pub fn decode_npz(data : Bytes) -> Result[NpzArchive, @error.NpyError] {
     pos = next
   }
   Ok(NpzArchive::{ members, })
+}
+
+///|
+// True when a member name must never become a filesystem-style key:
+// any path separator (a single '/' or '\' already covers traversal,
+// absolute paths and multi-segment names), a bare ".." segment, or a
+// Windows drive-letter root ("C:..."). Refused before extraction, so the
+// name never reaches a consumer.
+fn unsafe_member_name(name : String) -> Bool {
+  for c in name {
+    if c == '/' || c == '\\' {
+      return true
+    }
+  }
+  if name == ".." {
+    return true
+  }
+  name.length() >= 2 && name.get_char(1) == Some(':')
 }

@@ -429,3 +429,107 @@ test "npz_render_error_container_branches" {
     "NpzMemberNotFound\nMember: nope",
   )
 }
+
+// ---- Task 2: the four refusals (plan §2.2 step 4) ----
+
+///|
+test "npz_reject_compressed_member" {
+  // method = 8 (deflate) in the CD record: refused before the payload is
+  // touched -- the container is never inflated (§1 security posture).
+  let img = build_zip([
+    {
+      name: @utf8.encode("arr_0.npy"),
+      comp_method: 8,
+      gp_flags: 0,
+      payload: npy_v1(i4_header, i4_six()),
+    },
+  ])
+  match @npz.decode_npz(img.bytes) {
+    Err(@error.NpzCompressedMember("arr_0")) => ()
+    _ => assert_true(false)
+  }
+}
+
+///|
+test "npz_reject_path_traversal_member" {
+  // "../evil.npy" contains '/': refused with the stripped key.
+  let img = build_zip([
+    {
+      name: @utf8.encode("../evil.npy"),
+      comp_method: 0,
+      gp_flags: 0,
+      payload: npy_v1(i4_header, i4_six()),
+    },
+  ])
+  match @npz.decode_npz(img.bytes) {
+    Err(@error.NpzUnsafeMemberName("../evil")) => ()
+    _ => assert_true(false)
+  }
+}
+
+///|
+test "npz_reject_backslash_member" {
+  // Backslash is a path separator too (Windows shadowing surface).
+  let img = build_zip([
+    {
+      name: @utf8.encode("..\\evil.npy"),
+      comp_method: 0,
+      gp_flags: 0,
+      payload: npy_v1(i4_header, i4_six()),
+    },
+  ])
+  match @npz.decode_npz(img.bytes) {
+    Err(@error.NpzUnsafeMemberName("..\\evil")) => ()
+    _ => assert_true(false)
+  }
+}
+
+///|
+test "npz_reject_drive_letter_member" {
+  // "C:evil.npy" is a drive-letter root: second char ':' -> unsafe.
+  let img = build_zip([
+    {
+      name: @utf8.encode("c:evil.npy"),
+      comp_method: 0,
+      gp_flags: 0,
+      payload: npy_v1(i4_header, i4_six()),
+    },
+  ])
+  match @npz.decode_npz(img.bytes) {
+    Err(@error.NpzUnsafeMemberName("c:evil")) => ()
+    _ => assert_true(false)
+  }
+}
+
+///|
+test "npz_reject_duplicate_member" {
+  // Two members with the same key: zip-shadowing attack surface, refused.
+  let e = {
+    name: @utf8.encode("arr_0.npy"),
+    comp_method: 0,
+    gp_flags: 0,
+    payload: npy_v1(i4_header, i4_six()),
+  }
+  let img = build_zip([e, e])
+  match @npz.decode_npz(img.bytes) {
+    Err(@error.NpzDuplicateMember("arr_0")) => ()
+    _ => assert_true(false)
+  }
+}
+
+///|
+test "npz_reject_encrypted_member" {
+  // GP flag bit 0 (encryption): refused as BadStructure before extraction.
+  let img = build_zip([
+    {
+      name: @utf8.encode("arr_0.npy"),
+      comp_method: 0,
+      gp_flags: 0x0001,
+      payload: npy_v1(i4_header, i4_six()),
+    },
+  ])
+  match @npz.decode_npz(img.bytes) {
+    Err(@error.NpzBadStructure("encrypted member: arr_0")) => ()
+    _ => assert_true(false)
+  }
+}
