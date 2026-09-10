@@ -17,4 +17,5 @@ description = "Pure MoonBit reader/writer for the NumPy NPY binary array format.
 
 import {
   "moonbitlang/x@0.5.1",
+  "amor2025/moonNum@0.1.0",
 }

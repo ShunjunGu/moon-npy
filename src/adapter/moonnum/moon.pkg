@@ -1,0 +1,10 @@
+// src/adapter/moonnum -- S6 read-direction adapter to amor2025/moonNum@0.1.0.
+// Alias note: @core and @dtypes are moonNum's packages (docs/s6-api-card.md
+// §3.4); @dtype is this repo's src/dtype. Verified import form -- a file-level
+// `import` inside a .mbt is rejected by this toolchain pin (card §7).
+import {
+  "ShunjunGu/moon-npy/src/dtype",
+  "ShunjunGu/moon-npy/src/reader",
+  "amor2025/moonNum/src/core",
+  "amor2025/moonNum/src/dtypes",
+}
