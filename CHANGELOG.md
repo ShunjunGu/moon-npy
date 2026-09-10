@@ -6,6 +6,28 @@ The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **安全边界性质测试（创新包 A1）** — `tests/security_test.mbt`（3 用例）把「拒绝 object / void
+  数组」从功能缺失升级为**可回归验证的架构性质**：object descr 的三种端序写法（`|O` / `<O` / `>O`）
+  均在解释任何载荷字节**之前**、且与 `shape`（`()` / `(1,)` / `(2, 3)`）无关地返回
+  `UnsupportedObjectArray`；void（`|V8`）经 known-unsupported-kind 表返回 `UnsupportedDType`。
+  不新增产品代码，仅将 `dtype.mbt` 已有的前置拒绝固化为回归资产（`edge_test.mbt` 的标量用例
+  扩展为全矩阵）。单元测试 85 → **88**。
+- **语言内 round-trip 字节恒等性质（创新包 B1）** — `tests/property_test.mbt`：对全部 26 个
+  字节级 Oracle fixture 断言 `decode → encode` **逐字节恒等**，且重解码后 dtype / shape /
+  `element_count` 不变。字节级兼容保证从此**不依赖 Python 环境**也在 `moon test` 中被强制
+  （与 `interoperability/roundtrip.py` 的 NumPy 侧全量校验互补，非替代）。fixture 名单收敛到
+  `tests/npy_test.mbt` 的共享 `oracle_fixture_names()`（单一事实源，`fuzz_test.mbt` 改为引用）。
+  单元测试 88 → **89**。
+- **README Security 章节改写（创新包 A2）** — 原已有的 Security 节只笼统提到 `|O` 前置拒绝，
+  本轮改写为「Security by construction」叙事，与 A1 测试逐条对应（三种端序 + void + 精确错误
+  变体 + 指向 `tests/security_test.mbt`），并诚实限定边界（不宣称通用沙箱，只声明此类攻击面在
+  本库不存在）；兼容性矩阵中「见 Security」的引用仍成立。覆盖率与四门门禁不变（
+  core parser 98.5%、overall 91.3%，同 v0.1.0）。
+
 ## [v0.1.0] - 2026-09-08
 
 ### Added
