@@ -88,7 +88,7 @@ round-trip 全绿；覆盖率 core parser（format+lexer+parser）**98.5%**、�
 `amor2025/moonNum@0.1.0`（仅 S6 适配器 `src/adapter/moonnum/` 使用，详见下文「生态适配」）。
 核心层（format / header / dtype / reader / writer / error / cli）不依赖任何第三方库。
 
-**作为依赖引入**（发布到 Mooncakes 后；当前尚未发布，请从源码构建）：
+**作为依赖引入**（已发布于 Mooncakes，`mooncakes.io/docs/ShunjunGu/moon-npy`）：
 
 ```bash
 moon add ShunjunGu/moon-npy

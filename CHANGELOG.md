@@ -14,6 +14,11 @@ Oracle archive；覆盖率 `src/npz/` **97.1%**（102/105）、overall **92.4%**
 包后分母扩大仍高于 v0.2.0 的 91.7%）、core parser **98.5%**（不变）。工具链仍 pin
 MoonBit `0.1.20260827` / NumPy `2.3.4` / Python `3.14`。
 
+本版本同时是项目**首个 Mooncakes 发布版本**：`moon add ShunjunGu/moon-npy` 即可引入
+（[mooncakes.io/docs/ShunjunGu/moon-npy](https://mooncakes.io/docs/ShunjunGu/moon-npy)）。
+发布经官方打包校验（干净副本复跑 `moon check` 通过），并以独立 fresh 模块 `moon add` +
+纯 MoonBit 合成 NPY 解码冒烟实测验证。
+
 ### Added
 
 - **NPZ 容器读取（C1）** — `src/npz/` 新包：`decode_npz(Bytes) → Result[NpzArchive, NpyError]`，
