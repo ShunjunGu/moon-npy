@@ -147,3 +147,66 @@ test "complex_dtype_facts" {
   assert_eq(@dtype.descr_code(@dtype.Complex64), "c8")
   assert_eq(@dtype.descr_code(@dtype.Complex128), "c16")
 }
+
+///|
+test "complex_struct_eq" {
+  let z = @dtype.Complex::{ re: 1.0, im: 2.0, }
+  assert_eq(z, @dtype.Complex::{ re: 1.0, im: 2.0, })
+  assert_true(z != @dtype.Complex::{ re: 2.0, im: 1.0, }) // re/im are not swappable
+}
+
+///|
+test "read_c64_endianness" {
+  // LE: re=1.0 (00 00 80 3F), im=2.0 (00 00 00 40)
+  let le = Bytes::from_array([
+    b'\x00', b'\x00', b'\x80', b'\x3F', b'\x00', b'\x00', b'\x00', b'\x40',
+  ])
+  assert_eq(@dtype.read_c64(le, 0, @dtype.Little), @dtype.Complex::{
+    re: 1.0,
+    im: 2.0,
+  })
+  // BE: re=1.0 (3F 80 00 00), im=2.0 (40 00 00 00)
+  let be = Bytes::from_array([
+    b'\x3F', b'\x80', b'\x00', b'\x00', b'\x40', b'\x00', b'\x00', b'\x00',
+  ])
+  assert_eq(@dtype.read_c64(be, 0, @dtype.Big), @dtype.Complex::{
+    re: 1.0,
+    im: 2.0,
+  })
+}
+
+///|
+test "read_c16_endianness" {
+  // LE: re=1.0 (00 00 00 00 00 00 F0 3F), im=2.0 (... 00 00 00 40)
+  let le : Array[Byte] = [
+    b'\x00', b'\x00', b'\x00', b'\x00', b'\x00', b'\x00', b'\xF0', b'\x3F', b'\x00',
+    b'\x00', b'\x00', b'\x00', b'\x00', b'\x00', b'\x00', b'\x40',
+  ]
+  assert_eq(@dtype.read_c16(Bytes::from_array(le), 0, @dtype.Little), @dtype.Complex::{
+    re: 1.0,
+    im: 2.0,
+  })
+  let be : Array[Byte] = [
+    b'\x3F', b'\xF0', b'\x00', b'\x00', b'\x00', b'\x00', b'\x00', b'\x00', b'\x40',
+    b'\x00', b'\x00', b'\x00', b'\x00', b'\x00', b'\x00', b'\x00',
+  ]
+  assert_eq(@dtype.read_c16(Bytes::from_array(be), 0, @dtype.Big), @dtype.Complex::{
+    re: 1.0,
+    im: 2.0,
+  })
+}
+
+///|
+test "read_c16_keeps_full_double_precision" {
+  // The element struct stores Double, not Float: narrowing a complex128 half to
+  // f32 would silently turn 0.1 into 0.10000000149011612. 0.1 = 3F B9 ... 9A and
+  // -0.2 = BF C9 ... 9A are exact float64 patterns, so equality here proves the
+  // 64-bit mantissa survived the read (S1).
+  let be : Array[Byte] = [
+    b'\x3F', b'\xB9', b'\x99', b'\x99', b'\x99', b'\x99', b'\x99', b'\x9A', b'\xBF',
+    b'\xC9', b'\x99', b'\x99', b'\x99', b'\x99', b'\x99', b'\x9A',
+  ]
+  let z = @dtype.read_c16(Bytes::from_array(be), 0, @dtype.Big)
+  assert_eq(z.re, 0.1)
+  assert_eq(z.im, -0.2)
+}

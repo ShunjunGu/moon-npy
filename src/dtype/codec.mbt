@@ -130,3 +130,25 @@ pub fn read_f32(data : Bytes, off : Int, order : ByteOrder) -> Float {
 pub fn read_f64(data : Bytes, off : Int, order : ByteOrder) -> Double {
   UInt64::reinterpret_as_double(read_uint(data, off, 8, order))
 }
+
+///|
+// Read one complex64 element: real at [off, off+4), imag at [off+4, off+8),
+// each an IEEE-754 f32 in `order`, widened losslessly to Double (S1).
+// PRECONDITION: off + 8 <= Bytes::length(data).
+pub fn read_c64(data : Bytes, off : Int, order : ByteOrder) -> Complex {
+  Complex::{
+    re: read_f32(data, off, order).to_double(),
+    im: read_f32(data, off + 4, order).to_double(),
+  }
+}
+
+///|
+// Read one complex128 element: real f64 at [off, off+8), imag at [off+8, off+16).
+// Both halves are already Double, so nothing is lost (S1).
+// PRECONDITION: off + 16 <= Bytes::length(data).
+pub fn read_c16(data : Bytes, off : Int, order : ByteOrder) -> Complex {
+  Complex::{
+    re: read_f64(data, off, order),
+    im: read_f64(data, off + 8, order),
+  }
+}
