@@ -6,6 +6,8 @@ import {
   "ShunjunGu/moon-npy/src/reader",
   "ShunjunGu/moon-npy/src/writer",
   "ShunjunGu/moon-npy/src/cli",
+  "ShunjunGu/moon-npy/src/adapter/moonnum",
+  "amor2025/moonNum/src/core",
   "moonbitlang/core/encoding/utf8",
   "moonbitlang/core/quickcheck/splitmix",
   "moonbitlang/x/fs",

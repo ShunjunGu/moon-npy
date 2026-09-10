@@ -42,14 +42,15 @@ interop layer*, **not** a re-implementation of NumPy.
 | **M3** Writer（encode → 字节级对齐 `np.save`） | ✅ `src/writer/` |
 | **M4** `NumPy → MoonBit → NumPy` 字节级双向 round-trip + CI | ✅ **31/31**（第一阶段硬目标达成，§23） |
 | **CLI**（`inspect` / `validate` / `dump`） | ✅ `src/cli/`, `cmd/main/`（退出码 0/1/2 `$LASTEXITCODE` 实测） |
-| **M5** 边缘 / Fuzz / 覆盖率（§18 totality、§14 阈值） | ✅ 118 测试全绿；core parser **98.5%**、overall **91.4%**（CI 强制门禁） |
+| **M5** 边缘 / Fuzz / 覆盖率（§18 totality、§14 阈值） | ✅ 128 测试全绿；core parser **98.5%**、overall **91.7%**（CI 强制门禁） |
 | **S1** complex64 / complex128 读取（v0.2.0 Stretch，§6） | ✅ `src/dtype/`（`Complex` + `read_c64` / `read_c16`）、`src/reader/`（`to_c64` / `to_c16`） |
 | **S5** CLI `dump [--limit N]`（v0.2.0 Stretch，§6） | ✅ `src/cli/`（`run_dump`，13 个 dtype 全覆盖）、`cmd/main/`（CI 冒烟实测） |
 | **S4** storage-order 分块读取（v0.2.0 Stretch，§6） | ✅ `src/reader/`（`flat_range` + `to_f32_chunk` / `to_f64_chunk`）、`src/error/` + `src/cli/`（第 13 变体 `InvalidChunkRange` 及其渲染） |
+| **S6** moonNum 生态适配（v0.2.0 Stretch，§6） | ✅ `src/adapter/moonnum/`（读方向 `to_moonnum_f32` / `to_moonnum_f64`）；选型 go/no-go 见 [`docs/s6-api-card.md`](docs/s6-api-card.md) |
 
 Pinned toolchain（CI 复现基准）：**MoonBit `0.1.20260827`** · **NumPy `2.3.4`** · Python `3.14`。
-118 个单元测试（`moon test --target native`）+ 31 fixture 跨语言 round-trip 全绿；覆盖率 core parser
-（format+lexer+parser）**98.5%**、项目 overall **91.4%**（CI 强制阈值 ≥90% / ≥80%）。
+128 个单元测试（`moon test --target native`）+ 31 fixture 跨语言 round-trip 全绿；覆盖率 core parser
+（format+lexer+parser）**98.5%**、项目 overall **91.7%**（CI 强制阈值 ≥90% / ≥80%）。
 
 ## Features
 
@@ -61,6 +62,10 @@ Pinned toolchain（CI 复现基准）：**MoonBit `0.1.20260827`** · **NumPy `2
   只解码一个窗口（行读取场景）；越界或负值返回第 13 个结构化错误 `InvalidChunkRange(start, len)`，
   绝不 panic。省的是**输出数组**，payload 仍随 `decode` 全量驻留内存（无跨文件 I/O streaming，见
   Limitations）。
+- ✅ **生态适配（S6）** — `to_moonnum_f32` / `to_moonnum_f64` 把 `decode` 得到的 `NpyArray` 交给
+  `amor2025/moonNum` 的 `NdArray`（shape / storage order 原样传递，零元素解码）；big-endian、非
+  f32/f64、以及装不进 32 位 `Int` 的 shape 维度**前置拒绝**，失败用适配器自己的 `AdapterError`
+  表达（不侵入 `NpyError`，见下节 Ecosystem Adapter）。
 - ✅ **Writer** — 产物与 `np.save` / `numpy.lib.format.write_array` **逐字节一致**（含 64
   字节对齐、空格填充、`\n` 收尾）；已验证至 300 KB payload。
 - ✅ **Interop** — `NumPy → MoonBit → NumPy` 双向 round-trip，`np.array_equal` + 逐字节校验，
@@ -76,7 +81,9 @@ Pinned toolchain（CI 复现基准）：**MoonBit `0.1.20260827`** · **NumPy `2
 ## Installation
 
 模块清单 `moon.mod` 声明 `name = "ShunjunGu/moon-npy"`、`version = "0.1.0"`、
-`preferred_target = "native"`，唯一依赖 `moonbitlang/x@0.5.1`（`@fs` 文件 IO）。
+`preferred_target = "native"`，依赖 `moonbitlang/x@0.5.1`（`@fs` 文件 IO）与
+`amor2025/moonNum@0.1.0`（仅 S6 适配器 `src/adapter/moonnum/` 使用，详见下文 Ecosystem
+Adapter）。核心层（format / header / dtype / reader / writer / error / cli）不依赖任何第三方库。
 
 **作为依赖引入**（v0.1.0 发布到 Mooncakes 后）：
 
@@ -328,6 +335,53 @@ pub(all) enum NpyError {
 加宽）、`u64 → Array[UInt64]`。complex accessor 返回 `Array[Complex]`，两种宽度同一元素类型，
 由 `arr.dtype`（`Complex64` / `Complex128`）区分字节来自 2 × f32 还是 2 × f64。
 
+## Ecosystem Adapter
+
+S6 接上「`.npy` → 多维数组库」这条最后一公里：`src/adapter/moonnum/` 依赖
+`amor2025/moonNum@0.1.0`（纯 MoonBit，无 C / BLAS —— 选型 go/no-go 与全部实测数据见
+[`docs/s6-api-card.md`](docs/s6-api-card.md)），把 moon-npy 解析好的 `NpyArray` 交给 moonNum 的
+`NdArray`。**不解码任何元素**：载荷字节、`shape`、`fortran_order` 这三个事实两边的数组模型完全
+一致，reshape 只是 `NdArray::from_buffer` 内部的字节步长算术，`Bytes::to_array()` 是整个管线上
+唯一一次元素级拷贝。
+
+```moonbit
+// src/adapter/moonnum — 读方向，float32 / float64 only
+pub(all) enum AdapterError {
+  UnsupportedDType(String) // descr 不是 f4 / f8
+  BigEndianNotSupported(String) // moonNum 的缓冲模型只有小端（card §3.6）
+  ShapeDimensionTooLarge(UInt64) // 维度装不进 32 位 Int：拒绝，不截断
+}
+pub fn AdapterError::message(self : AdapterError) -> String
+pub fn to_moonnum_f32(arr : @reader.NpyArray) -> Result[@core.NdArray, AdapterError]
+pub fn to_moonnum_f64(arr : @reader.NpyArray) -> Result[@core.NdArray, AdapterError]
+```
+
+用法（与 `tests/adapter_test.mbt` 同源，CI 实跑；`@moonnum` 是
+`"ShunjunGu/moon-npy/src/adapter/moonnum"` 在 `moon.pkg` 里的默认别名）：
+
+```moonbit
+let data = @fs.read_file_to_bytes("tests/fixtures/f4_2x3_c_le_v1.npy").unwrap()
+let arr = @reader.decode(data).unwrap()
+let nd = @moonnum.to_moonnum_f32(arr).unwrap()
+nd.shape() // => [2, 3]
+nd.strides() // => [12, 4] —— 字节步长，与 NumPy 的 (12, 4) 直接可比
+nd.get_f32(4) // => 4.0
+```
+
+三条边界各有一条测试钉住（全部用真实 Oracle fixture 或合成 header，不是臆造数据）：
+
+- **big-endian 拒绝**：`f8_4_c_be_v1.npy`（`>f8`）moon-npy 能正常解码，适配器返回
+  `BigEndianNotSupported(">f8")` —— 递给 moonNum 只会得到「看起来合理」的错值，因为它的
+  `is_little_endian()` 是字面量 `true`。
+- **dtype 拒绝**：`i4_4_c_le_v1.npy`（`<i4`）→ `UnsupportedDType("<i4")`；两个入口各自声明自己的
+  dtype 前置条件（`to_moonnum_f64` 收到 `<f4` 同样拒绝），且 dtype 门在字节序门之前。
+- **shape 收窄拒绝**：`(1099511627776, 0)`（2⁴⁰ × 0）元素乘积为 0，`reader` 的 Int64 溢出校验
+  放行，但维度装不进 `Int` → `ShapeDimensionTooLarge(1099511627776UL)`。
+
+失败类型故意 **不是** `NpyError` 的新变体：那是 `pub(all) enum`，加变体会打破 `src/cli/render_error`
+的穷举 match（S4 踩过），而且这些都不是「`.npy` 文件本身有问题」——字节是合法 NPY，只是适配器
+无法在 moonNum 的模型里表达它。写方向（`NdArray → .npy`）与非 native 目标下的适配留给 v0.3。
+
 ## Architecture
 
 数据流与模块依赖（每层只依赖其上游，`cli` 纯逻辑、`cmd/main` 是唯一碰 IO 的薄壳）：
@@ -348,6 +402,8 @@ pub(all) enum NpyError {
     ├──►  reader.decode(Bytes)   → NpyArray → to_f32() / to_i64() / …  （惰性类型化访问）
     │                              └─ to_f32_chunk(start, len) / to_f64_chunk：storage-order 窗口（S4）
     └──►  writer.encode(NpyArray) → Bytes         （字节级对齐 np.save）
+
+  adapter/moonnum  NpyArray → moonNum NdArray（S6，读方向，f32/f64 LE；失败用适配器自己的 AdapterError）
 
   error     enum NpyError（13 构造子）贯穿所有层的 Result 失败通道
   cli       parse_args · run_inspect · run_validate · run_dump · render_error（纯逻辑，可黑盒测试）
@@ -370,9 +426,10 @@ moon-npy/
 │   ├── reader/            # decode(Bytes) -> NpyArray
 │   ├── writer/            # encode(NpyArray) -> Bytes（字节级对齐 np.save）
 │   ├── error/             # enum NpyError + Result
-│   └── cli/               # inspect / validate / dump 纯逻辑（parse_args + 渲染，无 IO）
+│   ├── cli/               # inspect / validate / dump 纯逻辑（parse_args + 渲染，无 IO）
+│   └── adapter/moonnum/   # S6 读方向适配 amor2025/moonNum（本仓唯一第三方依赖）
 ├── cmd/main/              # CLI 可执行薄壳（@fs 读字节 + extern "c" exit 设退出码）
-├── tests/                 # *_test.mbt（118，含 edge / fuzz / security / property）+ fixtures/（*.npy + expected.json）
+├── tests/                 # *_test.mbt（128，含 edge / fuzz / security / property / adapter）+ fixtures/（*.npy + expected.json）
 ├── interoperability/      # generate_fixtures.py / verify_moonbit_output.py / roundtrip.py
 ├── examples/roundtrip/    # emit harness（decode -> encode -> write，`moon run`）
 └── .github/workflows/     # ci.yml（§19：fmt/check/test/coverage/fixture/round-trip）
@@ -380,9 +437,9 @@ moon-npy/
 
 ## Limitations
 
-范围控制是本项目的第一原则（§5「明确不做什么」）。v0.1.0 有意不实现下列能力；v0.2.0 只新增三项
-——complex64 / complex128 读取（S1）、CLI `dump [--limit N]`（S5）、storage-order 窗口读取（S4）
-——其余范围未扩大：
+范围控制是本项目的第一原则（§5「明确不做什么」）。v0.1.0 有意不实现下列能力；v0.2.0 只新增四项
+——complex64 / complex128 读取（S1）、CLI `dump [--limit N]`（S5）、storage-order 窗口读取（S4）、
+moonNum 读方向适配（S6）——其余范围未扩大：
 
 - **不是 NumPy**：无线性代数 / FFT / 广播 / 矩阵运算，无 Tensor framework / 自动微分 /
   模型加载（PyTorch 等）。moon-npy 只做 `.npy` 二进制**序列化 / 反序列化**。
@@ -398,6 +455,8 @@ moon-npy/
 - **单文件、全内存**：一次性读入整个 `Bytes` 后解析，**没有跨文件 I/O 的 streaming**（不会边读磁盘
   边解码）。v0.2.0 S4 的 `to_f32_chunk` / `to_f64_chunk` 只把**输出数组**限到一个窗口，payload
   本身仍全部驻留内存；真正的按页惰性读（mmap / 文件 seek）不在本轮范围。
+- **适配器只单向、只两 dtype**：S6 只做读方向（`NpyArray → NdArray`）与 float32 / float64
+  小端；写方向、complex 与整数适配、以及 moonNum 在非 native 目标上的可用性都在 v0.3 之外。
 
 ## Security
 
@@ -447,14 +506,14 @@ Mechanics backing those claims (all exercised by `moon test`):
 ```bash
 moon fmt                                   # 格式化（CI 用 git diff --exit-code 强制无改动）
 moon check --target native                 # 类型检查
-moon test --target native                  # 118 个单元测试
+moon test --target native                  # 128 个单元测试
 ```
 
 **覆盖率**（CI 强制阈值门禁：core parser ≥90% / overall ≥80%，未达即失败）：
 
 ```bash
 moon test --target native --enable-coverage; moon coverage analyze
-moon coverage report -f summary            # 当前 core parser 98.5%、overall 91.4%
+moon coverage report -f summary            # 当前 core parser 98.5%、overall 91.7%
 ```
 
 **跨语言互操作**（需 NumPy / Python）：

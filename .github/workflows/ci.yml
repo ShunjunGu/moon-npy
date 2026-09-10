@@ -67,7 +67,8 @@ jobs:
           echo "$HOME/.moon/bin" >> "$GITHUB_PATH"
 
       # A fresh runner has an EMPTY package-registry index, so `moon check` cannot
-      # resolve the moon.mod dependency `moonbitlang/x@0.5.1` and fails with
+      # resolve the moon.mod dependencies (`moonbitlang/x@0.5.1`, plus
+      # `amor2025/moonNum@0.1.0` since S6) and fails with
       # "module was not found in the registry". `moon update` git-clones the index
       # from mooncakes.io into $HOME/.moon/registry/index (git is preinstalled on
       # ubuntu-latest). This refreshes ONLY the registry index -- it never touches

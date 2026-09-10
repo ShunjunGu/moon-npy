@@ -89,6 +89,31 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   末游标、6 个被拒窗口逐条回捕、dtype 先于窗口校验、行切片）；覆盖率 core parser **98.5%**
   （129/131，不变）、overall **91.2% → 91.4%**（675/740 → 688/753：`reader.mbt` 新增行全被覆盖，
   该文件保持 100%）。
+- **moonNum 读方向适配（v0.2.0 Stretch S6）** — `src/adapter/moonnum/`：`to_moonnum_f32` /
+  `to_moonnum_f64` 把 `reader.decode` 得到的 `NpyArray` 交给 `amor2025/moonNum@0.1.0` 的 `NdArray`。
+  零元素解码：载荷字节 + `shape` + `fortran_order` 直接喂 `NdArray::from_buffer`（moonNum 内部自己
+  算字节步长），`Bytes::to_array()` 是整条管线上唯一一次元素级拷贝。三个前置条件**任一不满足即拒**：
+  descr 不是本入口对应的 f4 / f8、big-endian（moonNum 的缓冲模型只有小端，其 `is_little_endian()`
+  是字面量 `true`，递过去只会得到「看起来合理」的错值）、shape 维度装不进 32 位 `Int`（拒绝，
+  不截断）。失败类型是适配器自己的 `pub(all) enum AdapterError`（3 变体 + `message()`）而**不是**
+  `NpyError` 的新变体：那是 `pub(all) enum`，加变体会打破 `src/cli/render_error` 的穷举 match
+  （S4 踩过），且这些均不是「`.npy` 文件本身有问题」——字节是合法 NPY，只是适配器无法在 moonNum
+  的模型里表达它。`moon.mod` 从此新增**本仓第一个也是唯一一个第三方依赖**
+  （`import { "moonbitlang/x@0.5.1", "amor2025/moonNum@0.1.0" }`）。选型 go/no-go 与全部 API 事实
+  见 `docs/s6-api-card.md`（Task 12 交付物）：**moonNum GO**（`check` / `test` 均退出码 0），
+  **numbt NO-GO**——`mizchi/numbt@0.2.4` 的 `check` 能过但 `test` 卡在 C native-stub 编译
+  （`cblas.h` 缺失），三条独立拒因（需系统 BLAS + Apple 专属 `-framework Accelerate`、数据模型
+  `Mat` 只有 f32/2-D、校验一律 `panic()` 与本仓 totality 纪律冲突），详见 card §4。
+  单元测试 **118 → 128**（10 个适配器用例：C / F order、0-d 标量、与 `to_f32` 扁平序一致、
+  三条拒因逐条、dtype 门先于字节序门、`message()` 三臂；F order 的 `strides` 与 `ravel` 序、
+  0-d 的空 `shape` / `strides` 均先用 **NumPy 2.3.4** 本地实测核对后写入，不凭记忆）；覆盖率
+  core parser **98.5%**（129/131，不变）、overall **91.4% → 91.7%**（688/753 → 714/779：
+  `adapter.mbt` 26/26 全覆盖，从 `coverage report -f summary` 的未满行清单消失）。
+  `.github/workflows/ci.yml` 的步骤**零改动**——现有 `moon update` 在 `moon check` 之前，已经能
+  解析新增的第三方依赖，本地模拟 CI 全链路（四门 + `moon update` + fixtures `--check` +
+  `roundtrip.py` 31/31）已复现绿；只刷了那步旁边的一句注释（原来只列了 `moonbitlang/x@0.5.1`
+  一个依赖，现已是两个）。`README.md` / `README_CN.md` 的 Installation 段同步——原「唯一依赖」
+  的说法从 S6 起已不成立，改为两个依赖并注明核心层不依赖任何第三方库。
 
 ### Changed
 
