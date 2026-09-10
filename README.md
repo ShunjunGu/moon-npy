@@ -42,10 +42,10 @@ interop layer*, **not** a re-implementation of NumPy.
 | **M3** Writer（encode → 字节级对齐 `np.save`） | ✅ `src/writer/` |
 | **M4** `NumPy → MoonBit → NumPy` 字节级双向 round-trip + CI | ✅ **26/26**（第一阶段硬目标达成，§23） |
 | **CLI**（`inspect` / `validate`） | ✅ `src/cli/`, `cmd/main/`（退出码 0/1/2 `$LASTEXITCODE` 实测） |
-| **M5** 边缘 / Fuzz / 覆盖率（§18 totality、§14 阈值） | ✅ 85 测试全绿；core parser **98.5%**、overall **91.3%**（CI 强制门禁） |
+| **M5** 边缘 / Fuzz / 覆盖率（§18 totality、§14 阈值） | ✅ 89 测试全绿；core parser **98.5%**、overall **91.3%**（CI 强制门禁） |
 
 Pinned toolchain（CI 复现基准）：**MoonBit `0.1.20260827`** · **NumPy `2.3.4`** · Python `3.14`。
-85 单元测试（`moon test --target native`）+ 26 fixture 跨语言 round-trip 全绿；覆盖率 core parser
+89 单元测试（`moon test --target native`）+ 26 fixture 跨语言 round-trip 全绿；覆盖率 core parser
 （format+lexer+parser）**98.5%**、项目 overall **91.3%**（CI 强制阈值 ≥90% / ≥80%）。
 
 ## Features
@@ -299,7 +299,7 @@ moon-npy/
 │   ├── error/             # enum NpyError + Result
 │   └── cli/               # inspect / validate 纯逻辑（parse_args + 渲染，无 IO）
 ├── cmd/main/              # CLI 可执行薄壳（@fs 读字节 + extern "c" exit 设退出码）
-├── tests/                 # *_test.mbt（85，含 edge / fuzz）+ fixtures/（*.npy + expected.json）
+├── tests/                 # *_test.mbt（89，含 edge / fuzz / security / property）+ fixtures/（*.npy + expected.json）
 ├── interoperability/      # generate_fixtures.py / verify_moonbit_output.py / roundtrip.py
 ├── examples/roundtrip/    # emit harness（decode -> encode -> write，`moon run`）
 └── .github/workflows/     # ci.yml（§19：fmt/check/test/coverage/fixture/round-trip）
@@ -324,24 +324,40 @@ moon-npy/
 
 ## Security
 
-moon-npy 的解析器面向**不可信输入**设计，安全属性由 §18 fuzz（7000 次迭代）持续验证：
+NPY object arrays carry Python pickle payloads — loading one can execute
+arbitrary code (the risk NumPy itself documents, and the reason SafeTensors
+exists). moon-npy is secure **by construction**, not by filtering:
 
-- **拒绝 object / pickle 载荷**：`descr` 含 `|O` → `UnsupportedObjectArray`，在解析 size 前即拒绝。
-  NPY object array 依赖 Python pickle，NumPy 官方明确警告加载 pickle 数据可能**执行任意代码**；
-  > moon-npy v0.x intentionally does not deserialize Python object arrays or pickle payloads.
+- **No pickle interpreter.** The codebase is pure MoonBit: there is no Python
+  runtime, no FFI, and no mechanism to invoke one. The only IO in the module is
+  reading bytes via `@fs` in `cmd/main`.
+- **Object arrays are refused at the dtype layer.** Every endian form of the
+  object descr (`|O`, `<O`, `>O`) is rejected with a structured
+  `UnsupportedObjectArray`, independently of `shape` and *before* any payload
+  byte is interpreted; void dtypes are refused the same way (`|V8` →
+  `UnsupportedDType`). Pinned by `tests/security_test.mbt`.
+- **Totality over arbitrary input.** The deterministic fuzz suite (7000
+  iterations, fixed seeds) proves that *any* byte sequence returns `Ok` or a
+  structured `NpyError` — never a trap, an out-of-bounds read, or an execution
+  path.
 
-  这既降低工程复杂度，也形成清晰的安全边界。
-- **全有界解析（totality）**：任意 `Bytes` 输入，`decode` / `validate` 恒返回 `Ok` 或结构化
-  `Err(NpyError)`——**绝不 crash / hang / 越界读 / 失控分配**。descr 解析用 bounds-safe
-  `String::get_char`（越界返 `None` → `InvalidDType`，不 trap）；短 buffer → `TruncatedHeader`。
-- **溢出防护（§9.2 / B2）**：MoonBit `Int` 为 32 位、溢出回绕，故 shape 乘积 / `element_count` /
-  字节数一律 `Int64`（或 `UInt64`）并**逐步前置溢出检查** → `ShapeOverflow`，绝不静默截断成
-  错误的分配大小。
-- **payload 长度严格对账**：`element_count * itemsize` 必须与实际 payload 字节数相等，否则
-  `DataLengthMismatch(expected, actual)`；accessor 只在长度已验证的 payload 上按 `itemsize` 步进，
-  数学上不可能越界。
-- **无 unsafe / 无 FFI / 无 Python 运行时**：核心层纯 `Bytes → 结构`，唯一 IO 在 `cmd/main`
-  的 `@fs` 读字节，攻击面小。
+Scope, stated honestly: moon-npy does not parse object or structured arrays, so
+"safe" here means *these attack surfaces do not exist in this library* — not a
+general sandbox. Files with unsupported dtypes fail loudly, with the exact error
+variant, and never partially.
+
+Mechanics backing those claims (all exercised by `moon test`):
+
+- **Overflow-guarded arithmetic (§9.2 / B2)**: MoonBit `Int` is 32-bit and
+  wraps, so shape products, `element_count` and byte counts are held in
+  `Int64` / `UInt64` with a check at every step → `ShapeOverflow`, never a
+  silently truncated allocation size.
+- **Strict payload reconciliation**: `element_count * itemsize` must equal the
+  bytes actually present, else `DataLengthMismatch(expected, actual)`;
+  accessors step over an already-validated payload, so an out-of-bounds read is
+  arithmetically impossible.
+- **Bounds-safe descr parsing**: `String::get_char` returns `None` past the end
+  → `InvalidDType` instead of trapping; a short buffer → `TruncatedHeader`.
 
 ## Development
 
@@ -354,7 +370,7 @@ moon-npy 的解析器面向**不可信输入**设计，安全属性由 §18 fuzz
 ```bash
 moon fmt                                   # 格式化（CI 用 git diff --exit-code 强制无改动）
 moon check --target native                 # 类型检查
-moon test --target native                  # 85 单元测试
+moon test --target native                  # 89 单元测试
 ```
 
 **覆盖率**（CI 强制阈值门禁：core parser ≥90% / overall ≥80%，未达即失败）：

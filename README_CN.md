@@ -38,10 +38,10 @@ Python FFI**。它是一个*格式互操作层*，**不是** NumPy 的重新实�
 | **M3** Writer（encode → 字节级对齐 `np.save`） | ✅ `src/writer/` |
 | **M4** `NumPy → MoonBit → NumPy` 字节级双向 round-trip + CI | ✅ **26/26**（第一阶段硬目标达成，§23） |
 | **CLI**（`inspect` / `validate`） | ✅ `src/cli/`, `cmd/main/`（退出码 0/1/2 `$LASTEXITCODE` 实测） |
-| **M5** 边缘 / Fuzz / 覆盖率（§18 totality、§14 阈值） | ✅ 85 测试全绿；core parser **98.5%**、overall **91.3%**（CI 强制门禁） |
+| **M5** 边缘 / Fuzz / 覆盖率（§18 totality、§14 阈值） | ✅ 89 测试全绿；core parser **98.5%**、overall **91.3%**（CI 强制门禁） |
 
 锁定工具链（CI 复现基准）：**MoonBit `0.1.20260827`** · **NumPy `2.3.4`** · Python `3.14`。
-85 个单元测试（`moon test --target native`）+ 26 个 fixture 跨语言 round-trip 全绿；覆盖率 core
+89 个单元测试（`moon test --target native`）+ 26 个 fixture 跨语言 round-trip 全绿；覆盖率 core
 parser（format+lexer+parser）**98.5%**、项目 overall **91.3%**（CI 强制阈值 ≥90% / ≥80%）。
 
 ## 特性（Features）
@@ -295,7 +295,7 @@ moon-npy/
 │   ├── error/             # enum NpyError + Result
 │   └── cli/               # inspect / validate 纯逻辑（parse_args + 渲染，无 IO）
 ├── cmd/main/              # CLI 可执行薄壳（@fs 读字节 + extern "c" exit 设退出码）
-├── tests/                 # *_test.mbt（85，含 edge / fuzz）+ fixtures/（*.npy + expected.json）
+├── tests/                 # *_test.mbt（89，含 edge / fuzz / security / property）+ fixtures/（*.npy + expected.json）
 ├── interoperability/      # generate_fixtures.py / verify_moonbit_output.py / roundtrip.py
 ├── examples/roundtrip/    # emit harness（decode -> encode -> write，`moon run`）
 └── .github/workflows/     # ci.yml（§19：fmt/check/test/coverage/fixture/round-trip）
@@ -320,24 +320,32 @@ moon-npy/
 
 ## 安全（Security）
 
-moon-npy 的解析器面向**不可信输入**设计，安全属性由 §18 fuzz（7000 次迭代）持续验证：
+NPY 的 object 数组以 Python pickle 为载荷——加载它可能执行任意代码（NumPy 官方文档明确警告的
+风险，也是 SafeTensors 立项的原因）。moon-npy 的安全**源于构造（by construction）**，
+而不是靠过滤：
 
-- **拒绝 object / pickle 载荷**：`descr` 含 `|O` → `UnsupportedObjectArray`，在解析 size 前即拒绝。
-  NPY object array 依赖 Python pickle，NumPy 官方明确警告加载 pickle 数据可能**执行任意代码**；
-  > moon-npy v0.x 有意不反序列化 Python object 数组或 pickle 载荷。
+- **无 pickle 解释器**：代码库是纯 MoonBit——没有 Python 运行时、没有 FFI、也没有任何调用
+  两者的机制；整个模块唯一的 IO 是 `cmd/main` 里用 `@fs` 读字节。
+- **object 数组在 dtype 层拒绝**：object descr 的每一种端序写法（`|O`、`<O`、`>O`）都在解释
+  任何载荷字节**之前**、且与 `shape` 无关地返回结构化错误 `UnsupportedObjectArray`；void dtype
+  同理（`|V8` → `UnsupportedDType`）。由 `tests/security_test.mbt` 逐条钉住。
+- **任意输入的总体性（totality）**：确定性 fuzz（固定种子，7000 次迭代）证明**任意**字节序列
+  只产生 `Ok` 或结构化 `NpyError`——绝不 trap、绝不越界读、绝不存在执行路径。
 
-  这既降低工程复杂度，也形成清晰的安全边界。
-- **全有界解析（totality）**：任意 `Bytes` 输入，`decode` / `validate` 恒返回 `Ok` 或结构化
-  `Err(NpyError)`——**绝不 crash / hang / 越界读 / 失控分配**。descr 解析用 bounds-safe
-  `String::get_char`（越界返 `None` → `InvalidDType`，不 trap）；短 buffer → `TruncatedHeader`。
+边界诚实声明：moon-npy 不解析 object / structured 数组，因此这里的「安全」指的是**这类攻击面
+在本库中不存在**——不是通用沙箱。不支持的 dtype 会**响亮地失败**，给出确切的错误变体，
+且绝不部分解析。
+
+支撑上述主张的实现机制（均由 `moon test` 覆盖）：
+
 - **溢出防护（§9.2 / B2）**：MoonBit `Int` 为 32 位、溢出回绕，故 shape 乘积 / `element_count` /
   字节数一律 `Int64`（或 `UInt64`）并**逐步前置溢出检查** → `ShapeOverflow`，绝不静默截断成
   错误的分配大小。
 - **payload 长度严格对账**：`element_count * itemsize` 必须与实际 payload 字节数相等，否则
   `DataLengthMismatch(expected, actual)`；accessor 只在长度已验证的 payload 上按 `itemsize` 步进，
   数学上不可能越界。
-- **无 unsafe / 无 FFI / 无 Python 运行时**：核心层纯 `Bytes → 结构`，唯一 IO 在 `cmd/main`
-  的 `@fs` 读字节，攻击面小。
+- **descr 解析全有界**：用 bounds-safe `String::get_char`（越界返 `None` → `InvalidDType`，
+  不 trap）；短 buffer → `TruncatedHeader`。
 
 ## 开发（Development）
 
@@ -350,7 +358,7 @@ moon-npy 的解析器面向**不可信输入**设计，安全属性由 §18 fuzz
 ```bash
 moon fmt                                   # 格式化（CI 用 git diff --exit-code 强制无改动）
 moon check --target native                 # 类型检查
-moon test --target native                  # 85 单元测试
+moon test --target native                  # 89 单元测试
 ```
 
 **覆盖率**（CI 强制阈值门禁：core parser ≥90% / overall ≥80%，未达即失败）：
