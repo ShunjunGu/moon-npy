@@ -706,3 +706,70 @@ test "npz_oracle_fixture_deflated_refused" {
     _ => assert_true(false)
   }
 }
+
+// ---- v0.3.0 C1 Task 5: container properties ----
+
+// Property 1 (savez ≡ save): the same f4 (2,3) array lives in
+// f4_2x3_c_le_v1.npy (written by np.save) and inside npz_3arr_c_le_v1.npz
+// (written by np.savez, member arr_0). The container path must yield a
+// member indistinguishable from the standalone decode -- same header, same
+// element count, byte-identical data. (Python-side Oracle guarantees the two
+// artifacts hold the same values by construction; here we verify the reader.)
+
+///|
+test "npz_savez_equals_save_equivalence" {
+  let standalone = match @reader.decode(load_fixture("f4_2x3_c_le_v1.npy")) {
+    Ok(a) => a
+    Err(_) => abort("standalone decode of f4_2x3_c_le_v1.npy failed")
+  }
+  match @npz.decode_npz(load_fixture("npz_3arr_c_le_v1.npz")) {
+    Ok(arch) =>
+      match arch.get("arr_0") {
+        Ok(m) => {
+          assert_eq(m.array.header.descr, standalone.header.descr)
+          assert_eq(m.array.header.shape, standalone.header.shape)
+          assert_eq(
+            m.array.header.fortran_order,
+            standalone.header.fortran_order,
+          )
+          assert_eq(m.array.element_count, standalone.element_count)
+          assert_eq(m.array.data, standalone.data)
+        }
+        _ => abort("npz.get(\"arr_0\") failed")
+      }
+    Err(_) => abort("npz decode of npz_3arr_c_le_v1.npz failed")
+  }
+}
+
+// Property 2 (pure passthrough): every committed .npy Oracle fixture, wrapped
+// by hand into a synthetic single-member stored npz (Task 1 test helpers),
+// decodes Ok with member data byte-identical to the direct NPY decode. The
+// container layer adds nothing and strips nothing for legal NPY payloads.
+
+///|
+test "npz_container_passthrough_31_fixtures" {
+  for name in oracle_fixture_names() {
+    let payload = load_fixture(name)
+    let img = build_zip([
+      { name: @utf8.encode("arr_0.npy"), comp_method: 0, gp_flags: 0, payload, },
+    ])
+    let direct = match @reader.decode(payload) {
+      Ok(a) => a
+      Err(_) => abort("\{name}: direct decode failed")
+    }
+    match @npz.decode_npz(img.bytes) {
+      Ok(arch) => {
+        assert_eq(arch.names(), ["arr_0"])
+        match arch.get("arr_0") {
+          Ok(m) => {
+            assert_eq(m.array.header.descr, direct.header.descr)
+            assert_eq(m.array.element_count, direct.element_count)
+            assert_eq(m.array.data, direct.data)
+          }
+          _ => abort("\{name}: npz.get(\"arr_0\") failed")
+        }
+      }
+      Err(_) => abort("\{name}: container decode refused a stored NPY")
+    }
+  }
+}
