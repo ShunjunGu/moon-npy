@@ -6,6 +6,23 @@ The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **性能基准（`examples/bench/`）** — §29 形状（100×768 float32，307328 B）四条读取路径
+  release 实测（Windows 11 25H2 · MoonBit `0.1.20260827` · 2026-09-10）：fs read
+  （热缓存）53.0 µs / 5804 MB/s、decode（validate + payload 拷贝）266.7 µs / 1152 MB/s、
+  decode + `to_f32`（76800 floats）816.1 µs / 377 MB/s、逐行 100 × `to_f32_chunk(768)`
+  （预解码数组）602.3 µs / 510 MB/s。输入在进程内合成（不依赖 fixture），
+  `moon run examples/bench --target native --release` 复现；数字为单机微基准口径，
+  不做跨库对比。
+
+### Changed
+
+- 文档：`README.md` / `README_CN.md` 新增 Performance 小节（环境 + 命令 + 数字三段式，
+  含 chunk 路径与全量路径的量化对比）、Layout 补 `examples/bench/`。
+
 ## [v0.3.0] - 2026-09-10
 
 v0.3.0 新增 C1：**NPZ 容器读取**（C1）——只读、未压缩的 `np.savez` ZIP 容器，成员 payload 原样

@@ -1,0 +1,9 @@
+pkgtype(kind: "executable")
+
+import {
+  "ShunjunGu/moon-npy/src/reader",
+  "moonbitlang/core/bench" @core_bench,
+  "moonbitlang/core/encoding/utf8",
+  "moonbitlang/core/json",
+  "moonbitlang/x/fs",
+}

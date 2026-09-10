@@ -182,6 +182,53 @@ python interoperability/verify_moonbit_output.py embeddings-moonbit.npy \
 python interoperability/roundtrip.py        # emit(moon run) + verify(numpy) 聚合，31/31
 ```
 
+## Performance
+
+One reproducible bench measures four read paths on the §29 shape (`100×768`
+float32, 307328 bytes on disk — the same array as the round-trip demo above).
+Run it from the repo root:
+
+```bash
+moon run examples/bench --target native --release
+```
+
+**Environment**: Windows 11 (25H2, build 26200) · Intel Core Ultra 5 236V
+(8 cores) · MoonBit `0.1.20260827 (d0aaa07)` · `moonc v0.10.11+6ff76a5f9` ·
+measured 2026-09-10. Statistics come from core/bench `single_bench` (auto
+batch sizing to a ~100 ms target per batch, 10 runs, 5% winsorised tails):
+
+| Scenario | mean | median | sd | Throughput |
+|---|---|---|---|---|
+| fs read (warm cache, 307328 B) | 53.0 µs | 50.2 µs | 21.0% | 5804 MB/s |
+| decode (validate + payload copy) | 266.7 µs | 275.4 µs | 9.8% | 1152 MB/s |
+| decode + `to_f32` (76800 floats out) | 816.1 µs | 952.8 µs | 32.5% | 377 MB/s |
+| row pass, 100 × `to_f32_chunk(768)` | 602.3 µs | 594.1 µs | 3.5% | 510 MB/s |
+
+MB/s = decimal MB ÷ mean time (file bytes in every row except the row pass,
+which reports its 307200-byte payload). The input file is synthesized
+in-process, so the bench needs no fixture. The row pass runs on an
+already-decoded array — the premise of row-at-a-time reading — so it isolates
+chunk extraction of all 76800 elements (100 calls × 768 floats) from the
+`decode` baseline that any full pass pays once.
+
+Reading the numbers (scope, stated honestly):
+
+- **`decode` is the fixed entry cost** (≈267 µs): validation plus one
+  byte-by-byte copy of the payload into a fresh `Bytes` — the documented
+  `slice_payload` step (MoonBit `Bytes` has no zero-copy sub-slice returning
+  `Bytes`, only views).
+- **`to_f32` adds ≈549 µs** to materialise 76800 floats — the widest spread
+  of the four (sd 32.5%; min 423 µs vs median 953 µs, so read the mean as
+  indicative). The row pass is the most stable (sd 3.5%): chaining `decode`
+  and the row pass (267 + 602 µs) stays within ~10% of the full-load path's
+  816 µs (means) — same order of magnitude, so chunked reading is not a
+  throughput play. What it changes is **peak output**: one 3 KB row instead
+  of one 300 KB array, payload resident either way — the quantified form of
+  the S4 note under Limitations.
+- **Not a cross-library comparison.** These are single-machine, warm-cache
+  microbenchmarks; rerun the command above for your own numbers and expect
+  the same order of magnitude, not the same digits.
+
 ## Compatibility Matrix
 
 正确性以**当前 NumPy 的实际行为**为唯一 Oracle。支持矩阵（§15，全部经 fixture 实测）：
@@ -452,6 +499,7 @@ moon-npy/
 ├── tests/                 # *_test.mbt（156，含 edge / fuzz / security / property / adapter / npz）+ fixtures/（31 *.npy + 3 *.npz + expected.json / npz_expected.json）
 ├── interoperability/      # generate_fixtures.py / verify_moonbit_output.py / roundtrip.py
 ├── examples/roundtrip/    # emit harness（decode -> encode -> write，`moon run`）
+├── examples/bench/        # performance bench（§29 shape，four read paths，`moon run --release`）
 └── .github/workflows/     # ci.yml（§19：fmt/check/test/coverage/fixture/round-trip）
 ```
 

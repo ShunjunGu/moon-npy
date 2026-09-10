@@ -178,6 +178,43 @@ python interoperability/verify_moonbit_output.py embeddings-moonbit.npy \
 python interoperability/roundtrip.py        # emit(moon run) + verify(numpy) 聚合，31/31
 ```
 
+## 性能（Performance）
+
+一次可复现的基准，在 §29 形状（`100×768` float32，磁盘上 307328 字节——与上文「往返演示」是同一个数组）上实测四条读取路径。在仓库根目录运行：
+
+```bash
+moon run examples/bench --target native --release
+```
+
+**环境**：Windows 11（25H2，build 26200）· Intel Core Ultra 5 236V（8 核）·
+MoonBit `0.1.20260827 (d0aaa07)` · `moonc v0.10.11+6ff76a5f9` · 实测日期 2026-09-10。
+统计来自 core/bench 的 `single_bench`（自动批量化至每批约 100 ms 目标、10 轮、5% 缩尾）：
+
+| 场景 | mean | median | sd | 吞吐 |
+|---|---|---|---|---|
+| fs read（热缓存，307328 B） | 53.0 µs | 50.2 µs | 21.0% | 5804 MB/s |
+| decode（validate + payload 拷贝） | 266.7 µs | 275.4 µs | 9.8% | 1152 MB/s |
+| decode + `to_f32`（输出 76800 floats） | 816.1 µs | 952.8 µs | 32.5% | 377 MB/s |
+| 逐行 100 × `to_f32_chunk(768)` | 602.3 µs | 594.1 µs | 3.5% | 510 MB/s |
+
+MB/s = 十进制 MB ÷ 平均耗时（逐行场景按其 307200 字节 payload 计，其余按文件字节）。
+输入在进程内合成，基准不依赖任何 fixture。逐行场景在**已 decode** 的数组上运行——这正是
+逐行读取的实际前提——因此它孤立的是「分块解出全部 76800 个元素」（100 次 × 768 floats）
+本身，不含全量路径都要先付一次的 `decode` 基线。
+
+数字说明了什么（口径如实）：
+
+- **`decode` 是固定入口成本**（≈267 µs）：校验 + 把 payload **逐字节复制**成新的
+  `Bytes`——源码中 `slice_payload` 的既定步骤（MoonBit `Bytes` 没有返回 `Bytes` 的零拷贝
+  子切片，只有 view）。
+- **`to_f32` 再花 ≈549 µs** 物化 76800 个 float——四条里分布最宽（sd 32.5%；min 423 µs
+  vs median 953 µs，均值只宜作参考量级）。逐行场景最稳（sd 3.5%）：「`decode` + 逐行」
+  （267 + 602 µs）与全量路径的 816 µs 相差在 ~10% 以内（均为均值口径）——同一数量级，
+  分块读取不是吞吐方案；它改变的是**峰值输出**：一行 3 KB 而非一次性 300 KB 数组，
+  而 payload 两种方式下都驻留内存——这就是「限制」中 S4 说明的量化形式。
+- **不是跨库对比**：单机、热缓存微基准；请用上面命令复跑你自己的数字，预期同一数量级、
+  而非同一组数字。
+
 ## 兼容性矩阵（Compatibility Matrix）
 
 正确性以**当前 NumPy 的实际行为**为唯一 Oracle。支持矩阵（§15，全部经 fixture 实测）：
@@ -448,6 +485,7 @@ moon-npy/
 ├── tests/                 # *_test.mbt（156，含 edge / fuzz / security / property / adapter / npz）+ fixtures/（31 *.npy + 3 *.npz + expected.json / npz_expected.json）
 ├── interoperability/      # generate_fixtures.py / verify_moonbit_output.py / roundtrip.py
 ├── examples/roundtrip/    # emit harness（decode -> encode -> write，`moon run`）
+├── examples/bench/        # 性能基准（§29 形状，四条读取路径，`moon run --release`）
 └── .github/workflows/     # ci.yml（§19：fmt/check/test/coverage/fixture/round-trip）
 ```
 
