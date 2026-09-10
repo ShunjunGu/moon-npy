@@ -153,6 +153,48 @@ test "validate_metadata" {
   assert_eq(m.payload_len, 24L)
 }
 
+///|
+test "decode_complex64" {
+  // Both byte orders must yield the same logical elements. Oracle (S1):
+  // im = 2 * re, so a swapped real/imag read fails immediately.
+  for name in ["c8_4_c_le_v1.npy", "c8_4_c_be_v1.npy"] {
+    let x = decode_fixture(name)
+    assert_eq(x.dtype, @dtype.Complex64)
+    assert_eq(x.element_count, 4L)
+    assert_eq(x.to_c64().unwrap(), [
+      @dtype.Complex::{ re: 0.0, im: 0.0, },
+      @dtype.Complex::{ re: 1.0, im: 2.0, },
+      @dtype.Complex::{ re: 2.0, im: 4.0, },
+      @dtype.Complex::{ re: 3.0, im: 6.0, },
+    ])
+  }
+}
+
+///|
+test "decode_complex128" {
+  for name in ["c16_4_c_le_v1.npy", "c16_4_c_be_v1.npy"] {
+    let x = decode_fixture(name)
+    assert_eq(x.dtype, @dtype.Complex128)
+    assert_eq(x.element_count, 4L)
+    assert_eq(x.to_c16().unwrap(), [
+      @dtype.Complex::{ re: 0.0, im: 0.0, },
+      @dtype.Complex::{ re: 1.0, im: 2.0, },
+      @dtype.Complex::{ re: 2.0, im: 4.0, },
+      @dtype.Complex::{ re: 3.0, im: 6.0, },
+    ])
+  }
+}
+
+///|
+test "decode_complex_2d" {
+  // Q2: accessors are flat/storage-order; shape stays metadata.
+  let x = decode_fixture("c8_2x3_c_le_v1.npy")
+  assert_eq(x.header.shape, [2UL, 3UL])
+  assert_eq(x.element_count, 6L)
+  assert_eq(x.to_c64().unwrap().length(), 6)
+  assert_eq(x.to_c64().unwrap()[5], @dtype.Complex::{ re: 5.0, im: 10.0, })
+}
+
 // ---- negative cases (§12 / §18) ----
 
 ///|
@@ -163,6 +205,19 @@ test "accessor_rejects_wrong_dtype" {
     _ => assert_true(false)
   }
   match a.to_f64() {
+    Err(@error.UnsupportedDType(_)) => ()
+    _ => assert_true(false)
+  }
+}
+
+///|
+test "complex_accessor_rejects_wrong_dtype" {
+  let a = decode_fixture("f4_2x3_c_le_v1.npy")
+  match a.to_c64() {
+    Err(@error.UnsupportedDType(_)) => ()
+    _ => assert_true(false)
+  }
+  match a.to_c16() {
     Err(@error.UnsupportedDType(_)) => ()
     _ => assert_true(false)
   }

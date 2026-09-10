@@ -246,3 +246,19 @@ pub fn NpyArray::to_f64(
 ) -> Result[Array[Double], @error.NpyError] {
   flat(self, @dtype.Float64, @dtype.read_f64)
 }
+
+///|
+// complex64 -> Array[Complex], each half widened from f32 to Double (S1).
+pub fn NpyArray::to_c64(
+  self : NpyArray,
+) -> Result[Array[@dtype.Complex], @error.NpyError] {
+  flat(self, @dtype.Complex64, @dtype.read_c64)
+}
+
+///|
+// complex128 -> Array[Complex], both halves already Double (S1).
+pub fn NpyArray::to_c16(
+  self : NpyArray,
+) -> Result[Array[@dtype.Complex], @error.NpyError] {
+  flat(self, @dtype.Complex128, @dtype.read_c16)
+}
