@@ -119,6 +119,34 @@ test "parse_dtype_reject_invalid" {
 }
 
 ///|
+test "parse_dtype_reject_size_overflow" {
+  // The digit accumulation must not wrap the 32-bit Int (AGENTS.md §4):
+  // "<f4294967300" (= 2^32 + 4) would otherwise land on the f4 branch and be
+  // accepted, while NumPy 2.3.4 refuses it ("data type not understood").
+  // The magnitude guard fires at the first digit past any legal itemsize.
+  for descr in ["<f4294967300", "<i999999999999999999999999"] {
+    match @dtype.parse_dtype(descr) {
+      Err(@error.InvalidDType(_)) => ()
+      _ => assert_true(false)
+    }
+  }
+}
+
+///|
+test "parse_dtype_leading_zeros_stay_legal" {
+  // Only the magnitude is bounded, never the digit count: NumPy 2.3.4 accepts
+  // leading zeros, so "<i0000000004" and "<i04" are both int32 there and must
+  // stay accepted here (the guard must not over-reject).
+  expect_dtype("<i0000000004", @dtype.Int32, @dtype.Little)
+  expect_dtype("<i04", @dtype.Int32, @dtype.Little)
+  expect_dtype(
+    "<f000000000000000000000000000004",
+    @dtype.Float32,
+    @dtype.Little,
+  )
+}
+
+///|
 test "parse_dtype_reject_bad_endian" {
   // A leading character that is not one of < > | = is an invalid byte order.
   for descr in ["f4", "Xf4", "1i2", "-i4"] {

@@ -113,8 +113,9 @@ test "fuzz_valid_prefix_random_body" {
   // Distribution (2): a well-formed v1.0 prefix (via v1_raw) framing 0..64 RANDOM
   // body bytes, so the header lexer / parser -- not just the magic check -- is
   // hammered: unbalanced quotes, invalid UTF-8, junk bare words, and long digit
-  // runs (lexer.mbt:135 wraps rather than traps, per the §21 UInt64 probe) all
-  // flow through and must yield Ok or a structured NpyError.
+  // runs (the lexer now overflow-guards digit accumulation and returns
+  // ShapeOverflow; the §18 invariant reads "no trap AND no wrap") all flow
+  // through and must yield Ok or a structured NpyError.
   let rng = @splitmix.new(seed=0xC0FFEEUL)
   for k = 0; k < 2000; k = k + 1 {
     let bodylen = rng.next_uint64(limit=65UL).to_int() // [0, 64]

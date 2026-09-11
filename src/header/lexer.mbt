@@ -128,11 +128,22 @@ fn lex(
       }
       i = j + 1
     } else if is_digit(b) {
-      // non-negative integer; accumulated in UInt64 (dims are UInt64, §9.2)
+      // Non-negative integer; accumulated in UInt64 (dims are UInt64, §9.2).
+      // The accumulation is overflow-guarded: an unguarded run wraps at 2^64,
+      // so shape (18446744073709551617,) (= 2^64 + 1) silently decoded as a
+      // length-1 array. A wrapped value is a malformed dimension, not a
+      // smaller legal one -- "never silently truncate" (B2 / §9.2) forbids
+      // the wrap, so ShapeOverflow is raised at the first provable overflow.
+      // UInt64::max itself is still lexed exactly (the guard is a strict >);
+      // it is then refused downstream as an Int64 overflow.
       let mut n = 0UL
       let mut j = i
       while j < end && is_digit(data[j]) {
-        n = n * 10UL + (data[j].to_int() - 48).to_uint64()
+        let digit = (data[j].to_int() - 48).to_uint64()
+        if n > (18446744073709551615UL - digit) / 10UL {
+          return Err(@error.ShapeOverflow)
+        }
+        n = n * 10UL + digit
         j = j + 1
       }
       toks.push(Num(n))

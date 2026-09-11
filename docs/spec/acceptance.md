@@ -140,9 +140,11 @@ CI fixture 生成（`generate_fixtures.py`）与 round-trip 验证（`roundtrip.
 ## §12 NpyError 枚举契约
 
 事实源：`src/cli/cli.mbt::render_error`（穷举匹配）与 `src/error/error.mbt`。CLI 渲染/测试断言的
-13 个变体：`InvalidMagic`、`UnsupportedVersion`、`TruncatedHeader`、`InvalidHeaderLength`、
-`InvalidHeaderSyntax`、`MissingHeaderField`、`InvalidDType`、`UnsupportedDType`、`ShapeOverflow`、
-`DataLengthMismatch`、`UnsupportedObjectArray`、`InvalidByteOrder`、`InvalidChunkRange`（S4 第 13 变体）。
+19 个变体（13 个 NPY 层 + 6 个 NPZ 容器层，v0.3.0）：`InvalidMagic`、`UnsupportedVersion`、
+`TruncatedHeader`、`InvalidHeaderLength`、`InvalidHeaderSyntax`、`MissingHeaderField`、
+`InvalidDType`、`UnsupportedDType`、`ShapeOverflow`、`DataLengthMismatch`、`UnsupportedObjectArray`、
+`InvalidByteOrder`、`InvalidChunkRange`（S4 第 13 变体）、`NpzBadStructure`、`NpzCompressedMember`、
+`NpzUnsafeMemberName`、`NpzDuplicateMember`、`NpzZip64Unsupported`、`NpzMemberNotFound`。
 每条 negative case 断言**具体枚举分支**，不接受泛化失败。
 
 ---
@@ -155,7 +157,10 @@ CI fixture 生成（`generate_fixtures.py`）与 round-trip 验证（`roundtrip.
 - **project overall（`Total:` 行）≥ 80%**；
 - 阈值任一跌破 → `awk` 非零退出，该步骤阻塞。未出现在 `-f summary` 的文件视为 100% 覆盖，
   求和只计列出的 core 文件是保守下界。
-- 当前实测（`coverage-summary.txt` / CI）：core parser **98.5%**、overall **92.4%**（822/890）。
+- 当前实测（`coverage-summary.txt` / CI，2026-09-11）：core parser **98.5%**（130/132）、
+  overall **81.7%**（824/1009）。Total 分母含 `cmd/` + `examples/` 入口 164 行零覆盖
+  （其中 `examples/bench/` 117 行）；剔除入口后 `src/` 库代码口径为 **97.5%**（824/845）。
+  v0.3.0 发布时点为 92.4%（822/890，bench 入库前）。
 
 > 阈值是**验收边界事实**，本文件仅记录，不修改；改阈值须同步改 `ci.yml` 与本节。
 

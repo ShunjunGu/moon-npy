@@ -22,6 +22,22 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - 文档：`README.md` / `README_CN.md` 新增 Performance 小节（环境 + 命令 + 数字三段式，
   含 chunk 路径与全量路径的量化对比）、Layout 补 `examples/bench/`。
+- 文档：覆盖率基线快照校准 — `docs/spec/acceptance.md` §14 与 `README.md` / `README_CN.md` 中的
+  实测数字更新为 2026-09-11 快照：core parser **98.5%**（130/132）、overall **81.7%**（824/1009；
+  分母含 `cmd/` + `examples/` 入口 164 行零覆盖，剔除后 `src/` 库代码口径 **97.5%**）。v0.3.0
+  发布时点 92.4%（822/890，bench 入库前）保留为历史事实。同时 §12 的 `NpyError` 变体清单
+  由 13 补齐为 **19**（含 v0.3.0 新增的 6 个 `Npz*` 容器层）。
+
+### Fixed
+
+- **解析器整数回绕（2 处）** — `parse_dtype` 的 descr size 累加（`src/dtype/dtype.mbt`）
+  与 header lexer 的 shape 维度累加（`src/header/lexer.mbt`）此前均无溢出守卫：`<f4294967300`
+  （= 2^32 + 4）被静默接受为 `f4`、shape `(2^64 + 1,)` 被静默截断为长度 1，均与「绝不静默
+  截断」纪律（§9.2/B2）冲突。两处现在各自在最可证明的溢出点返回结构化错误（`InvalidDType` /
+  `ShapeOverflow`）。修复边界以 NumPy 2.3.4 实测为 Oracle：带前导零的 descr（`<i04`、
+  `<i0000000004`）保持合法（NumPy 解析为 int32），只有数值回绕被拒绝。回归测试 +3
+  （`tests/dtype_test.mbt` ×2、`tests/edge_test.mbt` ×1），单元测试 156 → **159**；
+  `tests/fuzz_test.mbt` 的 §18 不变式注释同步升级为「no trap AND no wrap」。
 
 ## [v0.3.0] - 2026-09-10
 

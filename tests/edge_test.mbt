@@ -227,6 +227,26 @@ test "edge_byte_count_overflow" {
   }
 }
 
+///|
+test "edge_shape_overflow_lexer_wrap" {
+  // 2^64 + 1 used to wrap the UInt64 accumulation inside the lexer (digit
+  // loop), so shape (18446744073709551617,) silently decoded as a length-1
+  // array instead of failing. The lexer now raises ShapeOverflow at the first
+  // provable overflow (B2: never silently truncate).
+  let body = "{'descr': '<f4', 'fortran_order': False, 'shape': (18446744073709551617,)}"
+  match @reader.validate(v1_with_body(body)) {
+    Err(@error.ShapeOverflow) => ()
+    _ => assert_true(false)
+  }
+  // UInt64::max itself is still lexed exactly (no false positive at the guard
+  // boundary); it is refused downstream as an Int64 overflow instead.
+  let body2 = "{'descr': '<f4', 'fortran_order': False, 'shape': (18446744073709551615,)}"
+  match @reader.validate(v1_with_body(body2)) {
+    Err(@error.ShapeOverflow) => ()
+    _ => assert_true(false)
+  }
+}
+
 // ---- positive edge paths the fixtures do not cover (§4.4/§4.5) ----
 
 ///|

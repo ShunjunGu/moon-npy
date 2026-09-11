@@ -38,7 +38,7 @@ Python FFI**。它是一个*格式互操作层*，**不是** NumPy 的重新实�
 | **M3** Writer（encode → 字节级对齐 `np.save`） | ✅ `src/writer/` |
 | **M4** `NumPy → MoonBit → NumPy` 字节级双向 round-trip + CI | ✅ **31/31**（第一阶段硬目标达成，§23） |
 | **CLI**（`inspect` / `validate` / `dump`） | ✅ `src/cli/`, `cmd/main/`（退出码 0/1/2 `$LASTEXITCODE` 实测） |
-| **M5** 边缘 / Fuzz / 覆盖率（§18 totality、§14 阈值） | ✅ 156 测试全绿；core parser **98.5%**、overall **92.4%**（CI 强制门禁） |
+| **M5** 边缘 / Fuzz / 覆盖率（§18 totality、§14 阈值） | ✅ 159 测试全绿；core parser **98.5%**、overall **81.7%**（CI 强制门禁） |
 | **S1** complex64 / complex128 读取（v0.2.0 Stretch，§6） | ✅ `src/dtype/`（`Complex` + `read_c64` / `read_c16`）、`src/reader/`（`to_c64` / `to_c16`） |
 | **S5** CLI `dump [--limit N]`（v0.2.0 Stretch，§6） | ✅ `src/cli/`（`run_dump`，13 个 dtype 全覆盖）、`cmd/main/`（CI 冒烟实测） |
 | **S4** storage-order 分块读取（v0.2.0 Stretch，§6） | ✅ `src/reader/`（`flat_range` + `to_f32_chunk` / `to_f64_chunk`）、`src/error/` + `src/cli/`（第 13 变体 `InvalidChunkRange` 及其渲染） |
@@ -46,9 +46,9 @@ Python FFI**。它是一个*格式互操作层*，**不是** NumPy 的重新实�
 | **C1** NPZ 容器读取（v0.3.0，只读 + 未压缩） | ✅ `src/npz/`（`decode_npz` → `NpzArchive`，`get(name)` / `names()`；压缩 / zip64 / 路径穿越 / 重复成员容器层拒绝） |
 
 锁定工具链（CI 复现基准）：**MoonBit `0.10.11+6ff76a5f9`**（显示形式 `0.1.20260827 (d0aaa07)` 仅作展示）· **NumPy `2.3.4`** · Python `3.14`。
-156 个单元测试（`moon test --target native`）+ 31 个 .npy fixture + 3 个 .npz Oracle archive 跨语言
-round-trip 全绿；覆盖率 core parser（format+lexer+parser）**98.5%**、项目 overall **92.4%**
-（CI 强制阈值 ≥90% / ≥80%）。
+159 个单元测试（`moon test --target native`）+ 31 个 .npy fixture + 3 个 .npz Oracle archive 跨语言
+round-trip 全绿；覆盖率 core parser（format+lexer+parser）**98.5%**、项目 overall **81.7%**
+（含 CLI / 示例入口零覆盖；`src/` 库代码口径 **97.5%**），CI 强制阈值 ≥90% / ≥80%。
 
 ## 特性（Features）
 
@@ -481,7 +481,7 @@ moon-npy/
 │   ├── cli/               # inspect / validate / dump 纯逻辑（parse_args + 渲染，无 IO）
 │   └── adapter/moonnum/   # S6 读方向适配 amor2025/moonNum（本仓唯一第三方依赖）
 ├── cmd/main/              # CLI 可执行薄壳（@fs 读字节 + extern "c" exit 设退出码）
-├── tests/                 # *_test.mbt（156，含 edge / fuzz / security / property / adapter / npz）+ fixtures/（31 *.npy + 3 *.npz + expected.json / npz_expected.json）
+├── tests/                 # *_test.mbt（159，含 edge / fuzz / security / property / adapter / npz）+ fixtures/（31 *.npy + 3 *.npz + expected.json / npz_expected.json）
 ├── interoperability/      # generate_fixtures.py / verify_moonbit_output.py / roundtrip.py
 ├── examples/roundtrip/    # emit harness（decode -> encode -> write，`moon run`）
 ├── examples/bench/        # 性能基准（§29 形状，四条读取路径，`moon run --release`）
@@ -564,14 +564,14 @@ NPY 的 object 数组以 Python pickle 为载荷——加载它可能执行任�
 ```bash
 moon fmt                                   # 格式化（CI 用 git diff --exit-code 强制无改动）
 moon check --target native                 # 类型检查
-moon test --target native                  # 156 个单元测试
+moon test --target native                  # 159 个单元测试
 ```
 
 **覆盖率**（CI 强制阈值门禁：core parser ≥90% / overall ≥80%，未达即失败）：
 
 ```bash
 moon test --target native --enable-coverage; moon coverage analyze
-moon coverage report -f summary            # 当前 core parser 98.5%、overall 92.4%
+moon coverage report -f summary            # 当前 core parser 98.5%、overall 81.7%
 ```
 
 **跨语言互操作**（需 NumPy / Python）：

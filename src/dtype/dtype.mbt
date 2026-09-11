@@ -204,7 +204,15 @@ pub fn parse_dtype(
   if n < 3 {
     return Err(@error.InvalidDType(descr)) // kind but no size digits
   }
-  // size = descr[2..]; must be one or more ASCII digits
+  // size = descr[2..]; must be one or more ASCII digits.
+  //
+  // Magnitude is guarded: an unguarded accumulation wraps the 32-bit Int
+  // (AGENTS.md §4), so "<f4294967300" (= 2^32 + 4) would collapse onto the f4
+  // branch and be accepted -- NumPy 2.3.4 refuses it ("data type not
+  // understood"). Only the *value* is bounded, never the digit count: leading
+  // zeros are legal in NumPy ("<i0000000004" and "<i04" are both int32
+  // there), and the widest supported itemsize is 16, so a running value past
+  // 0xFFFF can never become a legal width no matter what digits follow.
   let mut size = 0
   let mut i = 2
   while i < n {
@@ -214,6 +222,9 @@ pub fn parse_dtype(
     }
     let code = c.to_int()
     if code >= 48 && code <= 57 {
+      if size > 0xFFFF {
+        return Err(@error.InvalidDType(descr))
+      }
       size = size * 10 + (code - 48)
     } else {
       return Err(@error.InvalidDType(descr))
