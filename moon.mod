@@ -1,4 +1,4 @@
-// moon-npy module manifest (syntax verified vs m0smoke, moon 0.1.20260827).
+// moon-npy module manifest (M0 gate verified, moon 0.1.20260827; see AGENTS.md §9).
 name = "ShunjunGu/moon-npy"
 
 version = "0.3.0"
