@@ -45,7 +45,7 @@ Python FFI**。它是一个*格式互操作层*，**不是** NumPy 的重新实�
 | **S6** moonNum 生态适配（v0.2.0 Stretch，§6） | ✅ `src/adapter/moonnum/`（读方向 `to_moonnum_f32` / `to_moonnum_f64`）；选型 go/no-go 见 [`docs/s6-api-card.md`](docs/s6-api-card.md) |
 | **C1** NPZ 容器读取（v0.3.0，只读 + 未压缩） | ✅ `src/npz/`（`decode_npz` → `NpzArchive`，`get(name)` / `names()`；压缩 / zip64 / 路径穿越 / 重复成员容器层拒绝） |
 
-锁定工具链（CI 复现基准）：**MoonBit `0.1.20260827`** · **NumPy `2.3.4`** · Python `3.14`。
+锁定工具链（CI 复现基准）：**MoonBit `0.10.11+6ff76a5f9`**（显示形式 `0.1.20260827 (d0aaa07)` 仅作展示）· **NumPy `2.3.4`** · Python `3.14`。
 156 个单元测试（`moon test --target native`）+ 31 个 .npy fixture + 3 个 .npz Oracle archive 跨语言
 round-trip 全绿；覆盖率 core parser（format+lexer+parser）**98.5%**、项目 overall **92.4%**
 （CI 强制阈值 ≥90% / ≥80%）。
@@ -187,7 +187,7 @@ moon run examples/bench --target native --release
 ```
 
 **环境**：Windows 11（25H2，build 26200）· Intel Core Ultra 5 236V（8 核）·
-MoonBit `0.1.20260827 (d0aaa07)` · `moonc v0.10.11+6ff76a5f9` · 实测日期 2026-09-10。
+MoonBit `0.10.11+6ff76a5f9`（显示 `0.1.20260827 (d0aaa07)`）· `moonc v0.10.11+6ff76a5f9` · 实测日期 2026-09-10。
 统计来自 core/bench 的 `single_bench`（自动批量化至每批约 100 ms 目标、10 轮、5% 缩尾）：
 
 | 场景 | mean | median | sd | 吞吐 |
@@ -256,7 +256,7 @@ python interoperability/generate_fixtures.py --full    # §15 完整矩阵
 moon run cmd/main --target native -- inspect  tests/fixtures/f4_2x3_c_le_v1.npy
 moon run cmd/main --target native -- validate tests/fixtures/f4_2x3_c_le_v1.npy
 moon run cmd/main --target native -- dump     tests/fixtures/c8_4_c_le_v1.npy
-moon run cmd/main --target native -- dump     tests/fixtures/f4_2x3_c_le_v1.npy --limit 3
+moon run cmd/main --target native -- dump     tests/fixtures/f4_2x3_c_le_v1.npy --limit 2
 ```
 
 `inspect` 打印元数据表（标签列宽 14，`Data size` 用二进制单位、两位小数）：
@@ -297,8 +297,7 @@ NPY Dump: tests/fixtures/f4_2x3_c_le_v1.npy
 ──────────────────────────
 [0] 0
 [1] 1
-[2] 2
-(showing 3 of 6 elements)
+(showing 2 of 6 elements)
 ```
 
 值走每个类型自己的 `to_string`，因此 **`Float` / `Double` 会省略尾随的 `.0`**——`1.0` 打印为
@@ -556,7 +555,7 @@ NPY 的 object 数组以 Python pickle 为载荷——加载它可能执行任�
 
 ## 开发（Development）
 
-前置：**MoonBit `0.1.20260827`**（pinned）、native target；跨语言测试另需 **NumPy `2.3.4`** /
+前置：**MoonBit `0.10.11+6ff76a5f9`**（pinned，显示形式 `0.1.20260827 (d0aaa07)` 仅作展示）、native target；跨语言测试另需 **NumPy `2.3.4`** /
 **Python `3.14`**。工具链事实与语法约定以 [`AGENTS.md`](AGENTS.md) 为**权威**（M0 实测固化，
 禁止基于旧假设臆写）。
 
@@ -593,7 +592,7 @@ python interoperability/roundtrip.py                   # 31 fixture 字节级 ro
 ## 持续集成（CI）
 
 [`.github/workflows/ci.yml`](.github/workflows/ci.yml)（§19）在 `ubuntu-latest` 上 pin
-MoonBit `0.1.20260827+d0aaa07` / NumPy `2.3.4` / Python `3.14`，依次跑：`moon fmt`（无 diff）
+MoonBit `0.10.11+6ff76a5f9`（显示 `0.1.20260827 (d0aaa07)`）/ NumPy `2.3.4` / Python `3.14`，依次跑：`moon fmt`（无 diff）
 → `moon check` → `moon test` → coverage（**强制阈值门禁**：core parser ≥90% / overall ≥80%，未达
 即失败）→ fixture `--check` → `roundtrip.py`（31 fixture emit + verify + byte-exact）→ CLI 冒烟
 （inspect / validate / dump + 退出码 0/1/2，含 `--limit` 截断与坏 `--limit` → 2）。README 展示的

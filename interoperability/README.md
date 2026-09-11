@@ -11,7 +11,7 @@
 | NumPy | **2.3.4** |
 | Python | 3.14.0 |
 
-CI 必须 pin 以上版本，与 `../AGENTS.md`（MoonBit `0.1.20260827`）一致，保证 fixture 可复现。
+CI 必须 pin 以上版本，与 `../AGENTS.md`（MoonBit `0.10.11+6ff76a5f9`，显示形式 `0.1.20260827 (d0aaa07)` 仅作展示）一致，保证 fixture 可复现。
 
 ## 文件
 
@@ -65,7 +65,7 @@ python interoperability/generate_fixtures.py --full
 
 ## CI 集成（§19）
 
-§19 pipeline 已落地为 `../.github/workflows/ci.yml`（pin MoonBit `0.1.20260827+d0aaa07` /
+§19 pipeline 已落地为 `../.github/workflows/ci.yml`（pin MoonBit `0.10.11+6ff76a5f9` /
 NumPy `2.3.4` / Python `3.14`）。各阶段 → 实际命令：
 
 ```text

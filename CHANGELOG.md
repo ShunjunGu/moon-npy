@@ -11,7 +11,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Added
 
 - **性能基准（`examples/bench/`）** — §29 形状（100×768 float32，307328 B）四条读取路径
-  release 实测（Windows 11 25H2 · MoonBit `0.1.20260827` · 2026-09-10）：fs read
+  release 实测（Windows 11 25H2 · MoonBit `0.10.11+6ff76a5f9`（显示形式 `0.1.20260827 (d0aaa07)` 仅作展示）· 2026-09-10）：fs read
   （热缓存）53.0 µs / 5804 MB/s、decode（validate + payload 拷贝）266.7 µs / 1152 MB/s、
   decode + `to_f32`（76800 floats）816.1 µs / 377 MB/s、逐行 100 × `to_f32_chunk(768)`
   （预解码数组）602.3 µs / 510 MB/s。输入在进程内合成（不依赖 fixture），
@@ -29,7 +29,7 @@ v0.3.0 新增 C1：**NPZ 容器读取**（C1）——只读、未压缩的 `np.s
 透传给既有 NPY decode 路径。单元测试 128 → **156**，fixture **31** 个 .npy + **3** 个 .npz
 Oracle archive；覆盖率 `src/npz/` **97.1%**（102/105）、overall **92.4%**（822/890，新增 npz
 包后分母扩大仍高于 v0.2.0 的 91.7%）、core parser **98.5%**（不变）。工具链仍 pin
-MoonBit `0.1.20260827` / NumPy `2.3.4` / Python `3.14`。
+MoonBit `0.10.11+6ff76a5f9`（显示形式 `0.1.20260827 (d0aaa07)` 仅作展示）/ NumPy `2.3.4` / Python `3.14`。
 
 本版本同时是项目**首个 Mooncakes 发布版本**：`moon add ShunjunGu/moon-npy` 即可引入
 （[mooncakes.io/docs/ShunjunGu/moon-npy](https://mooncakes.io/docs/ShunjunGu/moon-npy)）。
@@ -66,7 +66,7 @@ v0.2.0 Stretch 四项全部落地：complex64 / complex128 读取（S1）、CLI 
 （S5）、storage-order 分块读取（S4）、moonNum 读方向适配（S6）；加上新增的创新包 A1/B1/A2。
 单元测试 85 → **128**，fixture 26 → **31**，覆盖率 core parser **98.5%**、overall **91.7%**；
 本仓首个（也是目前唯一一个）第三方依赖 `amor2025/moonNum@0.1.0`。工具链仍 pin
-MoonBit `0.1.20260827` / NumPy `2.3.4` / Python `3.14`。
+MoonBit `0.10.11+6ff76a5f9`（显示形式 `0.1.20260827 (d0aaa07)` 仅作展示）/ NumPy `2.3.4` / Python `3.14`。
 
 ### Added
 
@@ -217,7 +217,7 @@ MoonBit `0.1.20260827` / NumPy `2.3.4` / Python `3.14`。
     （`moon run examples/roundtrip --target native -- <in> <out>`）。
   - `interoperability/roundtrip.py` — `expected.json` 驱动的跨语言 driver：逐 fixture
     emit + verify，聚合 `[PASS]/[FAIL]`，任一失败退出 1。当前 **26/26 字节级通过**。
-  - `.github/workflows/ci.yml` — §19 CI：pin MoonBit `0.1.20260827+d0aaa07` / NumPy
+  - `.github/workflows/ci.yml` — §19 CI：pin MoonBit `0.10.11+6ff76a5f9`（显示形式 `0.1.20260827 (d0aaa07)` 仅作展示）/ NumPy
     `2.3.4` / Python `3.14`；fmt → check → test → coverage → fixture `--check` →
     round-trip 全 26 fixture。
 - **NPY Writer（M3 `afb9da8`）** — `src/writer/`：`encode(NpyArray) -> Result[Bytes, NpyError]`，
@@ -233,7 +233,7 @@ MoonBit `0.1.20260827` / NumPy `2.3.4` / Python `3.14`。
 - **格式与错误基础层** — `src/format/`（`\x93NUMPY` magic、版本常量）、`src/error/`
   （`enum NpyError` + `Result`，12 分支）。
 - `AGENTS.md` — M0 验证 gate（2026-09-07）实测固化的 MoonBit 工具链事实与项目约定
-  （MoonBit `0.1.20260827`；错误范式 / Bytes / 位宽 / Float reinterpret / native IO /
+  （MoonBit `0.10.11+6ff76a5f9`，显示形式 `0.1.20260827 (d0aaa07)` 仅作展示；错误范式 / Bytes / 位宽 / Float reinterpret / native IO /
   CLI 参数 / 测试与覆盖率命令）。
 - NumPy 兼容性 Oracle（`interoperability/`）：
   - `generate_fixtures.py` — 数据驱动 fixture 生成器，从 numpy 真实产物字节反推

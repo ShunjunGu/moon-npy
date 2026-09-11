@@ -34,6 +34,8 @@
 | `§21` | Oracle = NumPy 真实行为 | 本文件 §21（源 `generate_fixtures.py`） |
 | `§23` | 第一阶段硬目标（DoD） | 本文件 §23 |
 | `附录 A` | fixture 字节契约 | 本文件 附录 A（源 `generate_fixtures.py::parse_npy`） |
+| `附录 A.4` | fixture 生成版本分派 | 本文件 附录 A.4（源 `generate_fixtures.py::write_npy`） |
+| `附录 A.5` | Oracle 值与差异可见性 | 本文件 附录 A.5 |
 | `附录 B` | 工具链实测命令 | `AGENTS.md` §0 / §8（MoonBit 工具链事实） |
 
 > 其它编号（如 `§5`「明确不做什么」、`§6` Stretch、`§29` Demo）属仓库特性/范围说明，
@@ -89,6 +91,17 @@
 `write_array(plain float32, version=(3,0))` 验证 uint32 header 长度解析与 UTF-8 header 读取，
 **不引入 structured dtype**。
 
+### A.4 fixture 生成版本分派
+
+`write_npy()` 实现 `np.save` / `write_array` 的路由（代码源 `generate_fixtures.py`）：
+
+- **v1.0** → `np.save(path, arr)`：对简单数组恒只产出 version 1.0（与 §8.4 一致）。
+- **v2.0 / v3.0** → `write_array(f, arr, version=(2,0)/(3,0))`：`np.save` 无法生成 2.0/3.0，
+  必须显式调用 `numpy.lib.format.write_array` 并指定 `version` 参数。
+
+CI fixture 生成（`generate_fixtures.py`）与 round-trip 验证（`roundtrip.py`）均经此路由，
+保证入库 `.npy` 与 `np.save` / `write_array` 逐字节一致（含 §7.4 对齐与空格填充）。
+
 ### A.5 Oracle 值与差异可见性
 
 `make_values()` 刻意不用全 0（会掩盖字节序/偏移 bug）：数值用 `arange` 铺 `0..n-1`；bool 用奇偶交替
@@ -142,7 +155,7 @@
 - **project overall（`Total:` 行）≥ 80%**；
 - 阈值任一跌破 → `awk` 非零退出，该步骤阻塞。未出现在 `-f summary` 的文件视为 100% 覆盖，
   求和只计列出的 core 文件是保守下界。
-- 当前实测（`coverage-summary.txt` / CI）：core parser **98.5%**、overall **91.7%**。
+- 当前实测（`coverage-summary.txt` / CI）：core parser **98.5%**、overall **92.4%**（822/890）。
 
 > 阈值是**验收边界事实**，本文件仅记录，不修改；改阈值须同步改 `ci.yml` 与本节。
 
@@ -168,7 +181,10 @@
 
 `expected.json` 记录每个 fixture 的 `version/descr/shape/fortran_order/header_len/data_offset/sha256/values`，
 既是 Reader 测试的 ground-truth，也是 `roundtrip.py` 的 fixture 清单来源。生成器**确定性输出**（无时间戳），
-同 NumPy 版本重跑字节一致；`--check` 仅逐一比对 `.npy` 的 `sha256`（不比对 `spec_ref` 等元数据字段）。
+同 NumPy 版本重跑字节一致；`--check` 逐一比对 `.npy` 的 `sha256`（不比对 `spec_ref` 等元数据字段），
+**并同时门禁 3 个 NPZ 归档**（`npz_3arr_c_le_v1.npz` / `npz_customkey_c_le_v1.npz` /
+`npz_deflated_c_le_v1.npz`）对 `npz_expected.json` 的 `sha256` 比对（v0.3.0 C1，
+与 `generate_fixtures.py::check()` 实现一致）。
 
 ---
 
@@ -198,7 +214,8 @@
   3. **Gate 2/3 check**：`moon check --target native`；
   4. **Gate 3/3 test**：`moon test --target native`；
   5. **coverage gate**：见 §14 阈值；
-  6. **fixture drift**：`python interoperability/generate_fixtures.py --check`；
+  6. **fixture drift**：`python interoperability/generate_fixtures.py --check`（门禁 31 个
+     `.npy` fixture 对 `expected.json` + 3 个 NPZ 归档对 `npz_expected.json` 的 `sha256` 一致性）；
   7. **round-trip**：`python interoperability/roundtrip.py -v`（见 §16）；
   8. **CLI + 退出码**：`moon run cmd/main --target native -- {inspect,validate,dump}` 及非零码断言（见 §13）。
 - **铁律**：README 展示的例子必须是 CI 中实际运行的例子（Demo 进 CI）。
