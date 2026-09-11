@@ -24,6 +24,12 @@ Thumbs.db
 .idea/
 .vscode/
 
+# --- agent tooling（本机运行时状态）---
+# OMC 会话状态 / 日志 / 计划草稿，仅本机有效，不入库。
+.omc/
+# Qoder 本机运行时产物（better-harness 报告 / canvas 等），不入库。
+.qoder/
+
 # --- stale local artifacts ---
 # Canonical NPY fixtures live in tests/fixtures/ (produced by
 # interoperability/generate_fixtures.py and tracked via expected.json). The
