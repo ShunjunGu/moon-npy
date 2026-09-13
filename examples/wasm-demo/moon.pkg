@@ -1,0 +1,5 @@
+pkgtype(kind: "foreign_library")
+
+import {
+  "ShunjunGu/moon-npy/src/cli",
+}

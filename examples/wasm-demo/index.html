@@ -1,0 +1,288 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>moon-npy · 浏览器内 .npy 解码演示</title>
+<style>
+  :root {
+    --bg: #0b0f14;
+    --panel: #11161d;
+    --line: #1f2630;
+    --text: #d7e0ea;
+    --muted: #8b98a8;
+    --accent: #4da3ff;
+    --ok: #3fb950;
+    --bad: #f85149;
+    --term: #05080c;
+    --mono: ui-monospace, "Cascadia Mono", "SF Mono", Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 15px/1.6 -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
+  }
+  header { max-width: 1080px; margin: 0 auto; padding: 40px 24px 8px; }
+  h1 { margin: 0 0 8px; font-size: 26px; letter-spacing: .2px; }
+  h1 .tag {
+    font: 12px/1 var(--mono);
+    color: var(--accent);
+    border: 1px solid var(--line);
+    border-radius: 99px;
+    padding: 4px 10px;
+    margin-left: 10px;
+    vertical-align: 4px;
+    white-space: nowrap;
+  }
+  .sub { margin: 0; color: var(--muted); }
+  .sub b { color: var(--text); font-weight: 600; }
+  main {
+    max-width: 1080px;
+    margin: 24px auto 0;
+    padding: 0 24px;
+    display: grid;
+    grid-template-columns: minmax(300px, 5fr) minmax(340px, 7fr);
+    gap: 18px;
+    align-items: start;
+  }
+  @media (max-width: 860px) { main { grid-template-columns: 1fr; } }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 18px;
+  }
+  .panel h2 {
+    margin: 0 0 12px;
+    font-size: 13px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    color: var(--muted);
+  }
+  .drop {
+    border: 1.5px dashed #2a3442;
+    border-radius: 10px;
+    padding: 22px 16px;
+    text-align: center;
+    color: var(--muted);
+    font-size: 14px;
+    transition: border-color .15s, background .15s;
+  }
+  .drop.hot { border-color: var(--accent); background: #4da3ff12; }
+  .drop p { margin: 0; }
+  button {
+    font: inherit;
+    color: var(--accent);
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+  .samples { display: flex; flex-direction: column; gap: 8px; margin: 16px 0 0; }
+  .samples button, .broken {
+    font: 13px/1.4 var(--mono);
+    text-align: left;
+    color: var(--text);
+    background: #161d26;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 9px 12px;
+    text-decoration: none;
+    transition: border-color .15s, transform .05s;
+  }
+  .samples button:hover, .broken:hover { border-color: var(--accent); }
+  .samples button:active, .broken:active { transform: translateY(1px); }
+  .broken { width: 100%; margin-top: 10px; color: var(--bad); }
+  .stats { margin: 18px 0 0; padding: 12px 0 0; border-top: 1px solid var(--line);
+           display: grid; grid-template-columns: auto 1fr; gap: 4px 14px;
+           font: 12.5px/1.7 var(--mono); }
+  .stats dt { color: var(--muted); }
+  .stats dd { margin: 0; text-align: right; }
+  .stats dd.ok { color: var(--ok); }
+  .term {
+    background: var(--term);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  .term .bar {
+    display: flex; align-items: center; gap: 6px;
+    padding: 9px 12px; border-bottom: 1px solid var(--line);
+    font: 12px/1 var(--mono); color: var(--muted);
+  }
+  .bar i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; background: #2a3442; }
+  .bar i:nth-child(1) { background: #ff5f57; } .bar i:nth-child(2) { background: #febc2e; }
+  .bar i:nth-child(3) { background: #28c840; }
+  .bar span { margin-left: 8px; }
+  #report {
+    margin: 0; padding: 16px; min-height: 300px; max-height: 520px;
+    overflow: auto;
+    font: 13.5px/1.75 var(--mono);
+    white-space: pre-wrap; word-break: break-all;
+    color: var(--text);
+  }
+  #report.err { color: #ffb3ad; }
+  #report .dim { color: var(--muted); }
+  footer {
+    max-width: 1080px; margin: 28px auto 48px; padding: 0 24px;
+    color: var(--muted); font-size: 13px;
+  }
+  footer code {
+    font-family: var(--mono); font-size: 12px;
+    background: #161d26; border: 1px solid var(--line);
+    border-radius: 6px; padding: 2px 6px;
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>moon-npy <span class="tag">wasm-gc demo</span></h1>
+  <p class="sub">纯 MoonBit 实现的 NumPy <b>.npy</b> 解析器，编译为 WebAssembly —— 整个解码过程在浏览器里本地完成：<b>零宿主依赖</b>、<b>零服务器</b>、<b>数据不出本机</b>。</p>
+</header>
+
+<main>
+  <section class="panel">
+    <h2>输入</h2>
+    <div class="drop" id="drop">
+      <p>拖拽 <b>.npy</b> 文件到这里</p>
+      <p style="margin-top:6px">或 <button id="pick" type="button">选择文件</button></p>
+      <input id="file" type="file" accept=".npy" hidden>
+    </div>
+
+    <h2 style="margin-top:20px">内置样例</h2>
+    <div class="samples" id="samples"></div>
+    <button id="broken" class="broken" type="button">损坏输入 · 错误处理演示</button>
+
+    <dl class="stats">
+      <dt>wasm 大小</dt><dd id="st-size">–</dd>
+      <dt>宿主 imports</dt><dd id="st-imports">–</dd>
+      <dt>最近解码耗时</dt><dd id="st-time">–</dd>
+      <dt>解析状态</dt><dd id="st-state">–</dd>
+    </dl>
+  </section>
+
+  <section class="panel">
+    <h2>输出 · inspect 报告</h2>
+    <div class="term">
+      <div class="bar"><i></i><i></i><i></i><span>moon-npy inspect</span></div>
+      <pre id="report">加载 WebAssembly 模块中…</pre>
+    </div>
+  </section>
+</main>
+
+<footer>
+  构建：<code>moon build --target wasm-gc</code> → <code>node embed.mjs &lt;wasm&gt;</code>（把产物与样例内嵌进本页）。
+  需要支持 wasm-gc 的现代浏览器（Chrome / Edge 119+）。仓库位置：<code>examples/wasm-demo/</code>
+</footer>
+
+<script src="./wasm-demo-b64.js"></script>
+<script src="./samples.js"></script>
+<script>
+"use strict";
+
+const $ = (id) => document.getElementById(id);
+const report = $("report");
+let ex = null;
+
+function b64ToBytes(b64) {
+  const bin = atob(b64);
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+
+// ---- Int bridge: upload as little-endian 32-bit words, pull report units ----
+function inspectBytes(bytes) {
+  const t0 = performance.now();
+  ex.mnpy_begin(bytes.length);
+  for (let i = 0; i < bytes.length; i += 4) {
+    const w = (bytes[i] | (bytes[i + 1] << 8) | (bytes[i + 2] << 16) | (bytes[i + 3] << 24)) | 0;
+    ex.mnpy_push_word(w);
+  }
+  ex.mnpy_inspect();
+  const len = ex.mnpy_out_len();
+  const chunks = [];
+  for (let i = 0; i < len; i += 4096) {
+    const end = Math.min(i + 4096, len);
+    let s = "";
+    for (let j = i; j < end; j++) s += String.fromCharCode(ex.mnpy_out_unit(j));
+    chunks.push(s);
+  }
+  return { text: chunks.join(""), ms: performance.now() - t0 };
+}
+
+function render(name, bytes) {
+  if (!ex) return;
+  const { text, ms } = inspectBytes(bytes);
+  const failed = text.trimStart().startsWith("\u2717");
+  report.textContent = text;
+  report.className = failed ? "err" : "";
+  $("st-time").textContent = ms.toFixed(1) + " ms";
+  const state = $("st-state");
+  state.textContent = failed ? "rejected" : "valid";
+  state.className = failed ? "" : "ok";
+  state.style.color = failed ? "var(--bad)" : "";
+  console.log("[moon-npy demo]", name, bytes.length, "bytes in", ms.toFixed(1), "ms");
+}
+
+// ---- Boot: instantiate the embedded wasm-gc module -------------------------
+(async () => {
+  try {
+    const bytes = b64ToBytes(window.MNPY_WASM_B64);
+    const mod = await WebAssembly.compile(bytes);
+    const inst = await WebAssembly.instantiate(mod, {});
+    ex = inst.exports;
+    const imports = WebAssembly.Module.imports(mod);
+    $("st-size").textContent = (bytes.length / 1024).toFixed(1) + " KB";
+    $("st-imports").textContent = imports.length === 0 ? "0（零依赖）" : imports.length;
+    $("st-imports").className = "ok";
+    report.textContent = "wasm 模块就绪。选择或拖入一个 .npy 文件，或点左侧内置样例。";
+    report.className = "dim";
+
+    // Built-in samples.
+    const box = $("samples");
+    for (const s of window.MNPY_SAMPLES) {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.textContent = s.label + "  ·  " + s.file;
+      b.addEventListener("click", () => render(s.file, b64ToBytes(s.b64)));
+      box.appendChild(b);
+    }
+  } catch (e) {
+    report.textContent = "wasm 初始化失败：" + e.message +
+      "\n\n需要支持 wasm-gc 的现代浏览器（Chrome / Edge 119+）。";
+    report.className = "err";
+  }
+})();
+
+// ---- Local file input + drag and drop --------------------------------------
+$("pick").addEventListener("click", (ev) => { ev.stopPropagation(); $("file").click(); });
+$("file").addEventListener("change", () => {
+  const f = $("file").files[0];
+  if (f) f.arrayBuffer().then((buf) => render(f.name, new Uint8Array(buf)));
+});
+
+const drop = $("drop");
+drop.addEventListener("click", () => $("file").click());
+for (const ev of ["dragenter", "dragover"]) {
+  drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add("hot"); });
+}
+for (const ev of ["dragleave", "drop"]) {
+  drop.addEventListener(ev, () => drop.classList.remove("hot"));
+}
+drop.addEventListener("drop", (e) => {
+  e.preventDefault();
+  const f = e.dataTransfer.files[0];
+  if (f) f.arrayBuffer().then((buf) => render(f.name, new Uint8Array(buf)));
+});
+
+// Malformed input must yield the error report, never a crash.
+$("broken").addEventListener("click", () => render("broken.npy", new Uint8Array([1, 2, 3, 4, 5])));
+</script>
+</body>
+</html>
