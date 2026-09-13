@@ -2,5 +2,6 @@ import {
   "ShunjunGu/moon-npy/src/error",
   "ShunjunGu/moon-npy/src/format",
   "ShunjunGu/moon-npy/src/reader",
+  "ShunjunGu/moon-npy/src/writer",
   "moonbitlang/core/encoding/utf8",
 }

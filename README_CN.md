@@ -38,17 +38,18 @@ Python FFI**。它是一个*格式互操作层*，**不是** NumPy 的重新实�
 | **M3** Writer（encode → 字节级对齐 `np.save`） | ✅ `src/writer/` |
 | **M4** `NumPy → MoonBit → NumPy` 字节级双向 round-trip + CI | ✅ **31/31**（第一阶段硬目标达成，§23） |
 | **CLI**（`inspect` / `validate` / `dump`） | ✅ `src/cli/`, `cmd/main/`（退出码 0/1/2 `$LASTEXITCODE` 实测） |
-| **M5** 边缘 / Fuzz / 覆盖率（§18 totality、§14 阈值） | ✅ 159 测试全绿；core parser **98.5%**、overall **81.7%**（CI 强制门禁） |
+| **M5** 边缘 / Fuzz / 覆盖率（§18 totality、§14 阈值） | ✅ 170 测试全绿；core parser **98.5%**、overall **80.5%**（CI 强制门禁） |
 | **S1** complex64 / complex128 读取（v0.2.0 Stretch，§6） | ✅ `src/dtype/`（`Complex` + `read_c64` / `read_c16`）、`src/reader/`（`to_c64` / `to_c16`） |
 | **S5** CLI `dump [--limit N]`（v0.2.0 Stretch，§6） | ✅ `src/cli/`（`run_dump`，13 个 dtype 全覆盖）、`cmd/main/`（CI 冒烟实测） |
 | **S4** storage-order 分块读取（v0.2.0 Stretch，§6） | ✅ `src/reader/`（`flat_range` + `to_f32_chunk` / `to_f64_chunk`）、`src/error/` + `src/cli/`（第 13 变体 `InvalidChunkRange` 及其渲染） |
 | **S6** moonNum 生态适配（v0.2.0 Stretch，§6） | ✅ `src/adapter/moonnum/`（读方向 `to_moonnum_f32` / `to_moonnum_f64`）；选型 go/no-go 见 [`docs/s6-api-card.md`](docs/s6-api-card.md) |
-| **C1** NPZ 容器读取（v0.3.0，只读 + 未压缩） | ✅ `src/npz/`（`decode_npz` → `NpzArchive`，`get(name)` / `names()`；压缩 / zip64 / 路径穿越 / 重复成员容器层拒绝） |
+| **C1** NPZ 容器读取（v0.3.0，未压缩） | ✅ `src/npz/`（`decode_npz` → `NpzArchive`，`get(name)` / `names()`；压缩 / zip64 / 路径穿越 / 重复成员容器层拒绝） |
+| **N7** NPZ 写方向（savez encode，Unreleased） | ✅ `src/npz/`（`encode_npz` + 自实现 CRC-32；`np.load` Oracle 验收 + CI，见特性） |
 
 锁定工具链（CI 复现基准）：**MoonBit `0.10.11+6ff76a5f9`**（显示形式 `0.1.20260827 (d0aaa07)` 仅作展示）· **NumPy `2.3.4`** · Python `3.14`。
-159 个单元测试（`moon test --target native`）+ 31 个 .npy fixture + 3 个 .npz Oracle archive 跨语言
-round-trip 全绿；覆盖率 core parser（format+lexer+parser）**98.5%**、项目 overall **81.7%**
-（含 CLI / 示例入口零覆盖；`src/` 库代码口径 **97.5%**），CI 强制阈值 ≥90% / ≥80%。
+170 个单元测试（`moon test --target native`）+ 31 个 .npy fixture + 3 个 .npz Oracle archive 跨语言
+round-trip 全绿；覆盖率 core parser（format+lexer+parser）**98.5%**、项目 overall **80.5%**
+（分母含 `cmd/` + 示例入口零覆盖行；`src/` 库代码口径 **97.9%**），CI 强制阈值 ≥90% / ≥80%。
 
 ## 特性（Features）
 
@@ -80,6 +81,12 @@ round-trip 全绿；覆盖率 core parser（format+lexer+parser）**98.5%**、�
   NPY decode 路径。五类拒绝均为结构化错误：压缩成员（`NpzCompressedMember`）、路径穿越
   （`NpzUnsafeMemberName`）、重复成员（`NpzDuplicateMember`）、zip64（`NpzZip64Unsupported`）、
   结构损坏或加密（`NpzBadStructure`）——见「安全」的容器层小节。
+- ✅ **NPZ 写方向（N7，Unreleased）** — `encode_npz` 产出**未压缩**、可被 `np.savez` 家族互操作的
+  ZIP 容器：全 ZIP_STORED、真实 CRC-32（`src/npz/crc32.mbt` 自实现，无第三方依赖）、固定
+  1980-01-01 时间戳、无 zip64 / extra field，逐字节确定性；非 ASCII key 置 UTF-8 名字标志
+  （GP bit 11）。拒绝面与读侧一一对应（不安全 / 重复 key、zip64 面）。Oracle 验收：
+  `examples/npz_write` 生成 → `interoperability/verify_npz_output.py` 用 `zipfile.testzip()` +
+  `np.load(allow_pickle=False)` 逐成员 `array_equal` 判定，CI 强制（含 UTF-8 key 路径）。
 
 ## 安装（Installation）
 
@@ -178,6 +185,30 @@ python interoperability/verify_moonbit_output.py embeddings-moonbit.npy \
 python interoperability/roundtrip.py        # emit(moon run) + verify(numpy) 聚合，31/31
 ```
 
+## NPZ 写方向 demo（N7）
+
+多个 `.npy` 读入 → `encode_npz` 打包成未压缩 NPZ → 落盘，NumPy 再 `np.load` 逐成员校验
+（与 round-trip demo 同构，往上一级容器；**CI 实际执行的命令**）：
+
+```bash
+# 1) MoonBit 读 4 个 fixture -> encode_npz -> 写盘（key = 文件名 stem）
+moon run examples/npz_write --target native -- _build/n7_out/demo.npz \
+    tests/fixtures/f4_2x3_c_le_v1.npy tests/fixtures/i4_4_c_le_v1.npy \
+    tests/fixtures/u1_4_c_na_v1.npy tests/fixtures/c8_4_c_le_v1.npy
+#    -> npz_write OK: _build/n7_out/demo.npz | 4 members | 1046 bytes
+
+# 2) NumPy 校验：zipfile CRC-32 + 全 ZIP_STORED + np.load + 逐成员 array_equal
+python interoperability/verify_npz_output.py _build/n7_out/demo.npz \
+    --reference f4_2x3_c_le_v1=tests/fixtures/f4_2x3_c_le_v1.npy \
+    --reference i4_4_c_le_v1=tests/fixtures/i4_4_c_le_v1.npy \
+    --reference u1_4_c_na_v1=tests/fixtures/u1_4_c_na_v1.npy \
+    --reference c8_4_c_le_v1=tests/fixtures/c8_4_c_le_v1.npy
+#    -> [verify-npz] PASS
+```
+
+非 ASCII key 同样支持（置 UTF-8 名字标志，CI 另行覆盖）：参数写成 `"数据=in.npy"` 形式的
+`<key>=<path>` 即可。
+
 ## 性能（Performance）
 
 一次可复现的基准，在 §29 形状（`100×768` float32，磁盘上 307328 字节——与上文「往返演示」是同一个数组）上实测四条读取路径。在仓库根目录运行：
@@ -230,8 +261,9 @@ MB/s = 十进制 MB ÷ 平均耗时（逐行场景按其 307200 字节 payload �
 **不支持**（识别后返回结构化 `UnsupportedDType` / `UnsupportedObjectArray`，而非静默出错）：
 object（`\|O`，**主动拒绝**，见「安全」）、half / longdouble（`e`/`g`）、complex256（`C`）、
 bytes / str（`S`/`U`）、void / structured（`V`）、datetime / timedelta（`M`/`m`）。GGUF /
-SafeTensors / Parquet 不在范围内；**NPZ** 自 v0.3.0 起支持**未压缩**容器的只读（见「特性」），
-压缩 / zip64 / 加密成员在容器层拒绝（见「安全」）。
+SafeTensors / Parquet 不在范围内；**NPZ** 自 v0.3.0 起支持**未压缩**容器的读取，写方向
+（`encode_npz`，N7）已实现并经 `np.load` Oracle 验收（尚未随版本发布）；压缩 / zip64 /
+加密成员在容器层拒绝（读、写两侧同口径，见「安全」）。
 
 当前入库 fixture 集（**31 个**）：float32 `(2,3)` C-order × v1.0 / v2.0 / v3.0（覆盖 uint16 与
 uint32 两条 header-length 解析路径）+ 全 dtype × 字节序定向矩阵（含 `c8` / `c16` 的 LE / BE 与 2-D
@@ -352,12 +384,15 @@ pub fn NpyArray::to_f64_chunk(self, start : Int, len : Int) -> Result[Array[Doub
 // src/writer — 序列化回字节级对齐 np.save 的 NPY
 pub fn encode(array : NpyArray) -> Result[Bytes, NpyError]
 
-// src/npz — NPZ（np.savez ZIP 容器）读取：只读 + 未压缩（v0.3.0 C1）
+// src/npz — NPZ（np.savez ZIP 容器）读写：未压缩（读 v0.3.0 C1；写 N7，Unreleased）
 pub struct NpzArchive { members : Array[NpzMember] } // 成员序 = central directory 序
 pub(all) struct NpzMember { name : String; array : @reader.NpyArray } // name 已剥 .npy 后缀
 pub fn decode_npz(data : Bytes) -> Result[NpzArchive, NpyError]
 pub fn NpzArchive::get(self, name : String) -> Result[NpzMember, NpyError]
 pub fn NpzArchive::names(self) -> Array[String]
+pub fn encode_npz(members : Array[NpzMember]) -> Result[Bytes, NpyError]
+// 全 ZIP_STORED + 真实 CRC-32 + 固定时间戳，逐字节确定性；非 ASCII key 置 UTF-8 标志（GP bit 11）；
+// 拒绝面镜像读侧：NpzUnsafeMemberName / NpzDuplicateMember / NpzZip64Unsupported（N7）
 
 // src/cli — 纯参数解析 + 输出渲染（无 IO）
 pub(all) enum Subcommand { Inspect; Validate; Dump(Int) }
@@ -452,7 +487,8 @@ nd.get_f32(4) // => 4.0
     ├──►  reader.decode(Bytes)   → NpyArray → to_f32() / to_i64() / …  （惰性类型化访问）
     │                              └─ to_f32_chunk(start, len) / to_f64_chunk：storage-order 窗口（S4）
     ├──►  writer.encode(NpyArray) → Bytes         （字节级对齐 np.save）
-    └──►  npz.decode_npz(Bytes) → NpzArchive     （成员透传 reader.decode；只读 + 未压缩，v0.3.0 C1）
+    ├──►  npz.decode_npz(Bytes) → NpzArchive     （成员透传 reader.decode；未压缩，v0.3.0 C1）
+    └──►  npz.encode_npz(Array[NpzMember]) → Bytes（savez 写方向，N7；成员透传 writer.encode）
 
   adapter/moonnum  NpyArray → moonNum NdArray（S6，读方向，f32/f64 LE；失败用适配器自己的 AdapterError）
 
@@ -476,14 +512,15 @@ moon-npy/
 │   ├── dtype/             # dtype codec + 字节序
 │   ├── reader/            # decode(Bytes) -> NpyArray
 │   ├── writer/            # encode(NpyArray) -> Bytes（字节级对齐 np.save）
-│   ├── npz/               # NPZ ZIP 容器读取（np.savez；只读 + 未压缩，v0.3.0 C1）
+│   ├── npz/               # NPZ ZIP 容器读 + 写（np.savez；未压缩；读 v0.3.0 C1，写 N7 + CRC-32 自实现）
 │   ├── error/             # enum NpyError + Result
 │   ├── cli/               # inspect / validate / dump 纯逻辑（parse_args + 渲染，无 IO）
 │   └── adapter/moonnum/   # S6 读方向适配 amor2025/moonNum（本仓唯一第三方依赖）
 ├── cmd/main/              # CLI 可执行薄壳（@fs 读字节 + extern "c" exit 设退出码）
-├── tests/                 # *_test.mbt（159，含 edge / fuzz / security / property / adapter / npz）+ fixtures/（31 *.npy + 3 *.npz + expected.json / npz_expected.json）
-├── interoperability/      # generate_fixtures.py / verify_moonbit_output.py / roundtrip.py
+├── tests/                 # *_test.mbt（167，含 edge / fuzz / security / property / adapter / npz 读写）+ fixtures/（31 *.npy + 3 *.npz + expected.json / npz_expected.json）
+├── interoperability/      # generate_fixtures.py / verify_moonbit_output.py / roundtrip.py / verify_npz_output.py
 ├── examples/roundtrip/    # emit harness（decode -> encode -> write，`moon run`）
+├── examples/npz_write/    # NPZ emit harness（N7：读 .npy -> encode_npz -> 落盘，`moon run`）
 ├── examples/bench/        # 性能基准（§29 形状，四条读取路径，`moon run --release`）
 └── .github/workflows/     # ci.yml（§19：fmt/check/test/coverage/fixture/round-trip）
 ```
@@ -492,7 +529,8 @@ moon-npy/
 
 范围控制是本项目的第一原则（§5「明确不做什么」）。v0.1.0 有意不实现下列能力；v0.2.0 只新增四项
 ——complex64 / complex128 读取（S1）、CLI `dump [--limit N]`（S5）、storage-order 窗口读取（S4）、
-moonNum 读方向适配（S6）——v0.3.0 只新增 NPZ 容器读取（C1，只读 + 未压缩），其余范围未扩大：
+moonNum 读方向适配（S6）——v0.3.0 只新增 NPZ 容器读取（C1，未压缩），其后仅追加 NPZ 写方向
+（N7，`encode_npz`），其余范围未扩大：
 
 - **不是 NumPy**：无线性代数 / FFT / 广播 / 矩阵运算，无 Tensor framework / 自动微分 /
   模型加载（PyTorch 等）。moon-npy 只做 `.npy` 二进制**序列化 / 反序列化**。
@@ -564,14 +602,14 @@ NPY 的 object 数组以 Python pickle 为载荷——加载它可能执行任�
 ```bash
 moon fmt                                   # 格式化（CI 用 git diff --exit-code 强制无改动）
 moon check --target native                 # 类型检查
-moon test --target native                  # 159 个单元测试
+moon test --target native                  # 170 个单元测试
 ```
 
 **覆盖率**（CI 强制阈值门禁：core parser ≥90% / overall ≥80%，未达即失败）：
 
 ```bash
 moon test --target native --enable-coverage; moon coverage analyze
-moon coverage report -f summary            # 当前 core parser 98.5%、overall 81.7%
+moon coverage report -f summary            # 当前 core parser 98.5%、overall 80.5%
 ```
 
 **跨语言互操作**（需 NumPy / Python）：
@@ -594,7 +632,8 @@ python interoperability/roundtrip.py                   # 31 fixture 字节级 ro
 [`.github/workflows/ci.yml`](.github/workflows/ci.yml)（§19）在 `ubuntu-latest` 上 pin
 MoonBit `0.10.11+6ff76a5f9`（显示 `0.1.20260827 (d0aaa07)`）/ NumPy `2.3.4` / Python `3.14`，依次跑：`moon fmt`（无 diff）
 → `moon check` → `moon test` → coverage（**强制阈值门禁**：core parser ≥90% / overall ≥80%，未达
-即失败）→ fixture `--check` → `roundtrip.py`（31 fixture emit + verify + byte-exact）→ CLI 冒烟
+即失败）→ fixture `--check` → `roundtrip.py`（31 fixture emit + verify + byte-exact）→ NPZ 写方向
+（`examples/npz_write` 生成 + `verify_npz_output.py` 校验，含 UTF-8 key 路径）→ CLI 冒烟
 （inspect / validate / dump + 退出码 0/1/2，含 `--limit` 截断与坏 `--limit` → 2）。README 展示的
 例子即 CI 实际运行的例子（§19 铁律）。
 

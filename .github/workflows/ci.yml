@@ -143,6 +143,32 @@ jobs:
       - name: NumPy -> MoonBit -> NumPy round-trip
         run: python interoperability/roundtrip.py -v
 
+      # N7 savez write direction: `moon run examples/npz_write` decodes fixture
+      # .npy files and packs them into an uncompressed .npz via encode_npz; then
+      # verify_npz_output.py has the Python Oracle assert what moon test cannot
+      # reach -- zipfile.testzip() CRC-32 (acceptance for the self-implemented
+      # crc32.mbt), all-members ZIP_STORED with a .npy suffix, np.load readable,
+      # and per-member dtype/shape/array_equal vs the source fixtures, in key
+      # order. The second pair pins the UTF-8 member key end to end: the stored
+      # name must reach np.load as "数据" (GP bit 11), not cp437 mojibake.
+      - name: MoonBit -> NumPy npz write (np.savez-compatible)
+        run: |
+          mkdir -p _build/n7_out
+          moon run examples/npz_write --target native -- _build/n7_out/demo.npz \
+            tests/fixtures/f4_2x3_c_le_v1.npy \
+            tests/fixtures/i4_4_c_le_v1.npy \
+            tests/fixtures/u1_4_c_na_v1.npy \
+            tests/fixtures/c8_4_c_le_v1.npy
+          python interoperability/verify_npz_output.py _build/n7_out/demo.npz \
+            --reference f4_2x3_c_le_v1=tests/fixtures/f4_2x3_c_le_v1.npy \
+            --reference i4_4_c_le_v1=tests/fixtures/i4_4_c_le_v1.npy \
+            --reference u1_4_c_na_v1=tests/fixtures/u1_4_c_na_v1.npy \
+            --reference c8_4_c_le_v1=tests/fixtures/c8_4_c_le_v1.npy
+          moon run examples/npz_write --target native -- _build/n7_out/utf8.npz \
+            "数据=tests/fixtures/f4_2x3_c_le_v1.npy"
+          python interoperability/verify_npz_output.py _build/n7_out/utf8.npz \
+            --reference "数据=tests/fixtures/f4_2x3_c_le_v1.npy"
+
       # CLI smoke + exit-code discipline (§13) — the README's inspect/validate/dump
       # commands, run for real. `moon run` propagates the child's status, so the
       # extern "c" exit_with is exercised end-to-end: a valid fixture exits 0, a

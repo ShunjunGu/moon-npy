@@ -1,9 +1,14 @@
-// NPZ container reader (v0.3.0, C1): read-only, uncompressed `np.savez`
+// NPZ container (v0.3.0, C1 read / N7 write): uncompressed `np.savez`
 // archives. Each member is a complete NPY byte stream, so member extraction
 // delegates to `@reader.decode` and reuses every validation of the
 // single-file reader, including the object-dtype refusal -- the container
 // adds no NPY semantics of its own, and NPY-layer errors pass through
-// unchanged.
+// unchanged. The write direction (encode_npz, N7) emits the "clean"
+// counterpart of the pinned facts below: real CRCs and sizes (no streamed
+// placeholders, no zip64 extra field), version-2.0 records, stored method,
+// and the fixed 1980-01-01 timestamp probe_npz.py measured on NumPy itself
+// (Python's zipfile default) -- deterministic byte-for-byte, and accepted by
+// `np.load`.
 //
 // Security posture (plan v0.3.0 §1/§2.2): the container is never inflated and
 // no member byte is ever executed; anything outside the read-only stored
@@ -281,4 +286,172 @@ fn unsafe_member_name(name : String) -> Bool {
     return true
   }
   name.length() >= 2 && name.get_char(1) == Some(':')
+}
+
+// ---- write direction (N7): a "clean" stored np.savez encoder ----
+
+///|
+// Push a non-negative Int below 65536 as two little-endian bytes. The
+// writer's only u16 fields are versions, flags, fixed dates, and the two
+// lengths already checked against 65535, so callers prove the bound.
+fn push_u16(out : Array[Byte], v : Int) -> Unit {
+  out.push((v % 256).to_byte())
+  out.push((v / 256 % 256).to_byte())
+}
+
+///|
+// Emit a non-negative Int as four little-endian bytes. Int is 32-bit, so a
+// value can never reach the 0xFFFFFFFF zip64 sentinel this writer never
+// writes (Bytes lengths are bounded by Int's positive range).
+fn push_u32(out : Array[Byte], v : Int) -> Unit {
+  out.push((v % 256).to_byte())
+  out.push((v / 256 % 256).to_byte())
+  out.push((v / 65536 % 256).to_byte())
+  out.push((v / 16777216 % 256).to_byte())
+}
+
+///|
+// Emit a CRC-32 as four little-endian bytes. Each byte is masked to 0..255
+// BEFORE the UInt -> Int reinterpretation: a direct UInt-to-Int conversion
+// would turn any CRC >= 2^31 negative and produce garbage bytes.
+fn push_crc32(out : Array[Byte], crc : UInt) -> Unit {
+  out.push((crc & 0xFFU).reinterpret_as_int().to_byte())
+  out.push(((crc >> 8) & 0xFFU).reinterpret_as_int().to_byte())
+  out.push(((crc >> 16) & 0xFFU).reinterpret_as_int().to_byte())
+  out.push(((crc >> 24) & 0xFFU).reinterpret_as_int().to_byte())
+}
+
+///|
+// True when the stored name holds a byte >= 0x80, i.e. the name is not pure
+// ASCII. Such names set the UTF-8 name flag (GP bit 11) so Python's zipfile
+// decodes them as UTF-8 instead of cp437 -- the same pairing Python's own
+// zipfile emits when it stores a non-ASCII name.
+fn member_name_non_ascii(name : Bytes) -> Bool {
+  for i = 0; i < name.length(); i = i + 1 {
+    if name[i].to_uint() > 0x7FU {
+      return true
+    }
+  }
+  false
+}
+
+///|
+// Encode an uncompressed np.savez archive (the N7 write direction): one
+// stored member "<key>.npy" per input member, in input order, so
+// decode_npz(encode_npz(x)) round-trips exactly the inputs the reader
+// accepts. Refusals mirror the reader one-for-one -- unsafe key ->
+// NpzUnsafeMemberName, duplicate key -> NpzDuplicateMember, an archive
+// needing zip64 -> NpzZip64Unsupported (more than 65535 members, or a
+// stored name over 65535 bytes); NPY-layer errors from @writer.encode pass
+// through unchanged. The output is the "clean" counterpart of the pinned
+// byte-layout facts: real CRCs and sizes (no streamed placeholders, no
+// zip64 extra), version-2.0 header fields, stored method, and the fixed
+// 1980-01-01 timestamp -- deterministic byte-for-byte, and accepted by
+// Python's zipfile / np.load. Non-ASCII keys set the UTF-8 name flag
+// (GP bit 11), so they never decode as cp437 mojibake.
+pub fn encode_npz(members : Array[NpzMember]) -> Result[Bytes, @error.NpyError] {
+  // Zip64 surface at write time: only the member count and the stored name
+  // length can reach a u16 field's range (sizes and offsets live in Int and
+  // Bytes, both strictly below any u32 sentinel).
+  if members.length() > 65535 {
+    return Err(@error.NpzZip64Unsupported)
+  }
+  let out : Array[Byte] = []
+  let stored_names : Array[Bytes] = []
+  let sizes : Array[Int] = []
+  let crcs : Array[UInt] = []
+  let gp_flags : Array[Int] = []
+  let local_offsets : Array[Int] = []
+  let seen : Array[String] = []
+  for m in members {
+    if unsafe_member_name(m.name) {
+      return Err(@error.NpzUnsafeMemberName(m.name))
+    }
+    for prior in seen {
+      if prior == m.name {
+        return Err(@error.NpzDuplicateMember(m.name))
+      }
+    }
+    seen.push(m.name)
+    let payload = match @writer.encode(m.array) {
+      Ok(p) => p
+      Err(e) => return Err(e) // NPY-layer errors pass through unchanged
+    }
+    let stored = @utf8.encode("\{m.name}.npy")
+    if stored.length() > 65535 {
+      return Err(@error.NpzZip64Unsupported)
+    }
+    let crc = crc32(payload)
+    let gp = if member_name_non_ascii(stored) { 0x0800 } else { 0 }
+    // Local file header: 30 fixed bytes + name + stored payload. The crc and
+    // size fields are the REAL values (the clean profile's point -- the
+    // reader ignores the local size fields anyway, probe fact).
+    local_offsets.push(out.length())
+    for b in sig_local {
+      out.push(b)
+    }
+    push_u16(out, 20) // version needed to extract: 2.0
+    push_u16(out, gp)
+    push_u16(out, 0) // compression method: stored
+    push_u16(out, 0) // last mod time: 0x0000 (fixed, 1980-01-01)
+    push_u16(out, 0x0021) // last mod date: 0x0021 (fixed, 1980-01-01)
+    push_crc32(out, crc)
+    push_u32(out, payload.length()) // compressed size (stored: equal)
+    push_u32(out, payload.length()) // uncompressed size
+    push_u16(out, stored.length()) // file name length
+    push_u16(out, 0) // extra field length (no zip64 extra in the clean form)
+    for i = 0; i < stored.length(); i = i + 1 {
+      out.push(stored[i])
+    }
+    for i = 0; i < payload.length(); i = i + 1 {
+      out.push(payload[i])
+    }
+    stored_names.push(stored)
+    sizes.push(payload.length())
+    crcs.push(crc)
+    gp_flags.push(gp)
+  }
+  // Central directory: 46 fixed bytes + name per member; the authoritative
+  // size/offset source decode_npz reads, holding the real values written
+  // above.
+  let cd_offset = out.length()
+  for k = 0; k < members.length(); k = k + 1 {
+    let stored = stored_names[k]
+    for b in sig_central {
+      out.push(b)
+    }
+    push_u16(out, 20) // version made by: 2.0
+    push_u16(out, 20) // version needed to extract: 2.0
+    push_u16(out, gp_flags[k])
+    push_u16(out, 0) // compression method: stored
+    push_u16(out, 0) // time
+    push_u16(out, 0x0021) // date
+    push_crc32(out, crcs[k])
+    push_u32(out, sizes[k]) // compressed size
+    push_u32(out, sizes[k]) // uncompressed size
+    push_u16(out, stored.length()) // name length
+    push_u16(out, 0) // extra length
+    push_u16(out, 0) // comment length
+    push_u16(out, 0) // disk number start
+    push_u16(out, 0) // internal attributes
+    push_u32(out, 0) // external attributes
+    push_u32(out, local_offsets[k]) // relative offset of the local header
+    for i = 0; i < stored.length(); i = i + 1 {
+      out.push(stored[i])
+    }
+  }
+  // End of central directory: 22 fixed bytes. Counts fit 65535 (checked
+  // above); no comment, no zip64 records.
+  let cd_size = out.length() - cd_offset
+  for b in sig_eocd {
+    out.push(b)
+  }
+  push_u16(out, 0) // number of this disk
+  push_u16(out, 0) // disk with the central directory
+  push_u16(out, members.length()) // entries on this disk
+  push_u16(out, members.length()) // total entries
+  push_u32(out, cd_size)
+  push_u32(out, cd_offset)
+  push_u16(out, 0) // comment length
+  Ok(Bytes::from_array(out))
 }

@@ -8,6 +8,10 @@ dump `np.savez` 与 `np.savez_compressed` 产物的 ZIP 字节布局，用于 pi
   3. local header 的 method / GP flags / name_len / extra_len，以及
      crc / comp_size / uncomp_size 是否为 0（bit-3 data descriptor 陷阱）
   4. zip64 extra field（id 0x0001）是否出现（出现 ≠ zip64 归档）
+  5. 完整 CD / LH 字段真值（ver_made/ver_need/mdate/mtime/attrs）。注：
+     numpy 2.3.4 的时间戳固定 1980-01-01（zipfile 默认，确定性）；
+     N7 Writer 仍以"干净 ZIP"形态对照（真实 crc/尺寸、无占位符、无 extra）
+  6. CRC-32 测试向量（zlib.crc32 真值），N7 自实现 CRC-32 的核对基准
 
 用法：python interoperability/probe_npz.py
 """
@@ -17,6 +21,7 @@ from __future__ import annotations
 import struct
 import sys
 import tempfile
+import zlib
 from pathlib import Path
 
 import numpy as np
@@ -26,6 +31,30 @@ MAGIC_PREFIX = b"\x93NUMPY"
 
 def hexs(b: bytes) -> str:
     return b.hex(" ")
+
+
+def crc32_vectors() -> None:
+    """CRC-32 (poly 0xEDB88320) vectors for the N7 Writer's self-implemented
+    CRC.
+
+    `zlib.crc32` is the exact routine `zipfile` verifies member CRCs with,
+    so these values decide whether `np.load` accepts a written archive. The
+    MoonBit unit test freezes the same inputs/values ("逐值核对").
+    """
+    print("=== CRC-32 vectors (zlib.crc32, poly 0xEDB88320) ===")
+    cases = [
+        ("", b""),
+        ('"a"', b"a"),
+        ('"hello"', b"hello"),
+        ('"123456789"', b"123456789"),
+        ("bytes(range(256))", bytes(range(256))),
+        ("32 x 0x00", b"\x00" * 32),
+        ("8 x 0xff", b"\xff" * 8),
+        ("NPY magic + v1.0", MAGIC_PREFIX + b"\x01\x00"),
+    ]
+    for label, c in cases:
+        print(f"  crc32({label}) = 0x{zlib.crc32(c):08X}")
+    print()
 
 
 def probe(path: Path) -> None:
@@ -55,10 +84,14 @@ def probe(path: Path) -> None:
         name = raw[pos + 46:pos + 46 + name_len].decode("utf-8")
         extra = raw[pos + 46 + name_len:pos + 46 + name_len + extra_len]
         print(f"CD[{n}] name={name!r} method={method} gp_flags=0x{gp_flags:04X}")
+        print(f"      ver_made={ver_made} ver_need={ver_need} "
+              f"mdate=0x{mdate:04X} mtime=0x{mtime:04X} "
+              f"(fixed 1980-01-01 -- zipfile default, deterministic)")
         print(f"      comp_size={comp_size} uncomp_size={uncomp_size} "
               f"crc32=0x{crc32:08X}")
         print(f"      name_len={name_len} extra_len={extra_len} "
               f"comment_len={comment_len2} local_offset={local_offset}")
+        print(f"      dstart={dstart} iattr=0x{iattr:04X} eattr=0x{eattr:08X}")
         if extra:
             print(f"      CD extra: {hexs(extra)}")
             # zip64 extra field id 0x0001: 内含 8 字节字段时是真正的 zip64 尺寸
@@ -78,8 +111,9 @@ def probe(path: Path) -> None:
         lextra = raw[local_offset + 30 + lname_len:
                      local_offset + 30 + lname_len + lextra_len]
         data_start = local_offset + 30 + lname_len + lextra_len
-        print(f"  LH: name={lname!r} method={lmethod} gp_flags=0x{lgp:04X} "
-              f"bit3={bool(lgp & 0x0008)}")
+        print(f"  LH: ver_need={lver} name={lname!r} method={lmethod} "
+              f"gp_flags=0x{lgp:04X} bit3={bool(lgp & 0x0008)} "
+              f"mdate=0x{lmd:04X} mtime=0x{lmt:04X}")
         print(f"      crc32=0x{lcrc:08X} comp_size={lcomp} uncomp_size={luncomp} "
               f"(zero-fields? {lcrc == 0 or lcomp == 0 or luncomp == 0})")
         print(f"      name_len={lname_len} extra_len={lextra_len} "
@@ -112,6 +146,8 @@ def main() -> int:
         p = td_path / "compressed.npz"
         np.savez_compressed(p, f4)
         probe(p)
+    print()
+    crc32_vectors()
     return 0
 
 

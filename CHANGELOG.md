@@ -17,16 +17,30 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   （预解码数组）602.3 µs / 510 MB/s。输入在进程内合成（不依赖 fixture），
   `moon run examples/bench --target native --release` 复现；数字为单机微基准口径，
   不做跨库对比。
+- **NPZ 写方向（N7）** — `npz.encode_npz(Array[NpzMember]) -> Result[Bytes, NpyError]` 产出
+  **未压缩** savez ZIP 容器：全 ZIP_STORED、真实 CRC-32（`src/npz/crc32.mbt` 自实现，
+  多项式/初值与 Python `zlib.crc32` 逐字节核对）、固定 1980-01-01 时间戳、无 zip64 /
+  extra field → 逐字节确定性；非 ASCII key 自动置 UTF-8 名字标志（GP bit 11）。拒绝面镜像
+  读侧：unsafe key → `NpzUnsafeMemberName`、重复 key → `NpzDuplicateMember`、成员数或名字
+  长度超 ZIP 上限 → `NpzZip64Unsupported`；NPY 层错误从 `writer.encode` 透传。
+- **NPZ 写方向 Oracle 链（N7）** — `examples/npz_write/`（CLI demo，含 UTF-8 key 路径）生成
+  `.npz`，`interoperability/verify_npz_output.py` 用 `np.load` + `array_equal` + member 名
+  集合校验（`--reference` 支持 `KEY=` 前缀），接入 CI 作为独立步骤；自读闭环 / 确定性 /
+  拒绝面 / UTF-8 key 共 11 个新测试，单元测试 159 → **170**。
 
 ### Changed
 
 - 文档：`README.md` / `README_CN.md` 新增 Performance 小节（环境 + 命令 + 数字三段式，
   含 chunk 路径与全量路径的量化对比）、Layout 补 `examples/bench/`。
+- 文档：`README.md` / `README_CN.md` 同步 N7 — Status 表、Features「NPZ 写方向」子弹、
+  「NPZ 写方向 demo」小节（命令即 CI 实跑，§19）、API 清单补 `encode_npz`、Architecture
+  图 / Layout / Scope / Limitations / CI 段落。
 - 文档：覆盖率基线快照校准 — `docs/spec/acceptance.md` §14 与 `README.md` / `README_CN.md` 中的
-  实测数字更新为 2026-09-11 快照：core parser **98.5%**（130/132）、overall **81.7%**（824/1009；
-  分母含 `cmd/` + `examples/` 入口 164 行零覆盖，剔除后 `src/` 库代码口径 **97.5%**）。v0.3.0
-  发布时点 92.4%（822/890，bench 入库前）保留为历史事实。同时 §12 的 `NpyError` 变体清单
-  由 13 补齐为 **19**（含 v0.3.0 新增的 6 个 `Npz*` 容器层）。
+  实测数字更新为 2026-09-13 快照：core parser **98.5%**（130/132）、overall **80.5%**
+  （984/1222；分母含 `cmd/` + `examples/` 入口 217 行零覆盖，剔除后 `src/` 库代码口径
+  **97.9%**（960/981，含 `crc32.mbt` 14/14））。v0.3.0 发布时点 92.4%（822/890，bench
+  入库前）与 bench / npz 写方向入库前快照 81.7%（824/1009）保留为历史事实。同时 §12 的
+  `NpyError` 变体清单由 13 补齐为 **19**（含 v0.3.0 新增的 6 个 `Npz*` 容器层）。
 
 ### Fixed
 

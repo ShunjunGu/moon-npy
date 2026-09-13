@@ -157,10 +157,12 @@ CI fixture 生成（`generate_fixtures.py`）与 round-trip 验证（`roundtrip.
 - **project overall（`Total:` 行）≥ 80%**；
 - 阈值任一跌破 → `awk` 非零退出，该步骤阻塞。未出现在 `-f summary` 的文件视为 100% 覆盖，
   求和只计列出的 core 文件是保守下界。
-- 当前实测（`coverage-summary.txt` / CI，2026-09-11）：core parser **98.5%**（130/132）、
-  overall **81.7%**（824/1009）。Total 分母含 `cmd/` + `examples/` 入口 164 行零覆盖
-  （其中 `examples/bench/` 117 行）；剔除入口后 `src/` 库代码口径为 **97.5%**（824/845）。
-  v0.3.0 发布时点为 92.4%（822/890，bench 入库前）。
+- 当前实测（`coverage-summary.txt` / CI，2026-09-13，含 N7 写方向）：core parser **98.5%**（130/132）、
+  overall **80.5%**（984/1222）。Total 分母含 `cmd/` + `examples/` 入口零覆盖行 217
+  （其中 `examples/bench/` 117 行；`examples/npz_write/main.mbt` 经同包白盒测试后为 24/54）；
+  剔除入口后 `src/` 库代码口径为 **97.9%**（960/981，含 `crc32.mbt` 14/14）。
+  v0.3.0 发布时点为 92.4%（822/890，bench 入库前），bench / npz 写方向入库前快照为
+  81.7%（824/1009）。
 
 > 阈值是**验收边界事实**，本文件仅记录，不修改；改阈值须同步改 `ci.yml` 与本节。
 

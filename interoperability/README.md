@@ -20,7 +20,10 @@ CI 必须 pin 以上版本，与 `../AGENTS.md`（MoonBit `0.10.11+6ff76a5f9`，
 | `generate_fixtures.py` | 用 `numpy.lib.format` 生成 `.npy` fixture，并从**真实产物字节**反推 `expected.json` |
 | `verify_moonbit_output.py` | 校验 MoonBit Writer 产物（`np.load` / `array_equal` / 逐字节）；单一 Oracle 真相源 |
 | `roundtrip.py` | **M4 跨语言 driver**：`expected.json` 驱动，逐 fixture `emit`（`moon run examples/roundtrip`）+ `verify`，聚合 `[PASS]/[FAIL]`，任一失败退出 1 |
+| `probe_npz.py` | NPZ **真值探针**：逐字段 dump NumPy `np.savez` 产物的 ZIP 结构（EOCD / central directory / 本地头 / GP flags / CRC-32 / 时间戳），为 `encode_npz` 与 CRC-32 实现提供字节级字段真值 |
+| `verify_npz_output.py` | 校验 MoonBit `encode_npz` 产物（N7）：`np.load` + `array_equal` + member 名集合；`--reference [KEY=]REF.npy` 指定对照数组（`KEY=` 前缀显式指定成员名，缺省用文件 stem） |
 | `../tests/fixtures/*.npy` | 生成的 fixture（Reader 测试输入 + round-trip 输入） |
+| `../tests/fixtures/*.npz` | NumPy `np.savez` / 负面用例生成的 NPZ Oracle archive（`decode_npz` 测试输入 + `encode_npz` 重打包对照） |
 | `../tests/fixtures/expected.json` | 每个 fixture 的期望 version/descr/shape/order/header_len/data_offset/checksum/values；亦是 `roundtrip.py` 的 fixture 清单来源 |
 
 ## 生成 / 校验 fixture
@@ -76,6 +79,9 @@ MoonBit Reads NumPy      ┐
 MoonBit Generates NPY    ├→ roundtrip.py：逐 fixture emit（moon run examples/roundtrip → out.npy）
 NumPy Reads MoonBit      │              + verify（np.load / array_equal）
 Byte-level round-trip    ┘              + 逐字节 vs Oracle（B1 回归）；31/31 通过
+NPZ 写方向（N7）         → moon run examples/npz_write --target native -- out.npz [key=]in.npy…
+                          + verify_npz_output.py out.npz --reference [KEY=]REF.npy
+                          （含 UTF-8 key 路径；[verify-npz] PASS 才继续）
 ```
 
 `roundtrip.py` 把「MoonBit 读 → 重新输出 → NumPy 校验（含逐字节）」三步合一，委托
