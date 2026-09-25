@@ -150,6 +150,10 @@ test "npz_write_reject_unsafe_name" {
     Err(@error.NpzUnsafeMemberName("C:data")) => ()
     _ => assert_true(false)
   }
+  match @npz.encode_npz([@npz.NpzMember::{ name: "", array: a0, }]) {
+    Err(@error.NpzUnsafeMemberName("")) => ()
+    _ => assert_true(false)
+  }
 }
 
 ///|

@@ -31,14 +31,14 @@ Python FFI**。它是一个*格式互操作层*，**不是** NumPy 的重新实�
 
 | 阶段 | 状态 |
 |---|---|
-| **M0** 工具链验证 gate（附录 B.2 全 7 项） | ✅ **GO** — 见 [`AGENTS.md`](AGENTS.md) |
+| **M0** 工具链验证 gate（附录 B.2 全 7 项） | ✅ **GO** — 版本 pin 与可执行门禁见 [验收规范](docs/spec/acceptance.md) §19；原始探针见源码仓库的 `AGENTS.md` |
 | NumPy 兼容性 Oracle + fixtures（31） | ✅ 就位（`interoperability/`, `tests/fixtures/`） |
 | **M1** NPY header 解析（v1/v2/v3） | ✅ `src/header/` |
 | **M2** dtype codec + Reader（decode → 类型化数组） | ✅ `src/dtype/`, `src/reader/` |
 | **M3** Writer（encode → 字节级对齐 `np.save`） | ✅ `src/writer/` |
 | **M4** `NumPy → MoonBit → NumPy` 字节级双向 round-trip + CI | ✅ **31/31**（第一阶段硬目标达成，§23） |
 | **CLI**（`inspect` / `validate` / `dump`） | ✅ `src/cli/`, `cmd/main/`（退出码 0/1/2 `$LASTEXITCODE` 实测） |
-| **M5** 边缘 / Fuzz / 覆盖率（§18 totality、§14 阈值） | ✅ 170 测试全绿；core parser **98.5%**、overall **80.5%**（CI 强制门禁） |
+| **M5** 边缘 / Fuzz / 覆盖率（§18 totality、§14 阈值） | ✅ 门禁达成；N7 前历史快照为 159 测试、core parser **98.5%**、overall **81.7%**（当时 CI 门禁） |
 | **S1** complex64 / complex128 读取（v0.2.0 Stretch，§6） | ✅ `src/dtype/`（`Complex` + `read_c64` / `read_c16`）、`src/reader/`（`to_c64` / `to_c16`） |
 | **S5** CLI `dump [--limit N]`（v0.2.0 Stretch，§6） | ✅ `src/cli/`（`run_dump`，13 个 dtype 全覆盖）、`cmd/main/`（CI 冒烟实测） |
 | **S4** storage-order 分块读取（v0.2.0 Stretch，§6） | ✅ `src/reader/`（`flat_range` + `to_f32_chunk` / `to_f64_chunk`）、`src/error/` + `src/cli/`（第 13 变体 `InvalidChunkRange` 及其渲染） |
@@ -46,10 +46,36 @@ Python FFI**。它是一个*格式互操作层*，**不是** NumPy 的重新实�
 | **C1** NPZ 容器读取（v0.3.0，未压缩） | ✅ `src/npz/`（`decode_npz` → `NpzArchive`，`get(name)` / `names()`；压缩 / zip64 / 路径穿越 / 重复成员容器层拒绝） |
 | **N7** NPZ 写方向（savez encode，Unreleased） | ✅ `src/npz/`（`encode_npz` + 自实现 CRC-32；`np.load` Oracle 验收 + CI，见特性） |
 
-锁定工具链（CI 复现基准）：**MoonBit `0.10.11+6ff76a5f9`**（显示形式 `0.1.20260827 (d0aaa07)` 仅作展示）· **NumPy `2.3.4`** · Python `3.14`。
-170 个单元测试（`moon test --target native`）+ 31 个 .npy fixture + 3 个 .npz Oracle archive 跨语言
-round-trip 全绿；覆盖率 core parser（format+lexer+parser）**98.5%**、项目 overall **80.5%**
-（分母含 `cmd/` + 示例入口零覆盖行；`src/` 库代码口径 **97.9%**），CI 强制阈值 ≥90% / ≥80%。
+已发布的 v0.3.0 包只包含未压缩 NPZ **读取**（C1）；NPZ **写入**（N7）已在本仓库源码实现，
+尚未随正式版本发布。下方 N7 命令需从源码检出运行。
+
+锁定工具链（CI 复现基准）：**MoonBit `0.10.11+6ff76a5f9`**（显示形式 `0.1.20260827 (d0aaa07)` 仅作展示）· **NumPy `2.3.4`** · Python `3.14` · Node.js `24.11.0`（WASM 验证器）。
+176 个单元测试（`moon test --target native`）+ 31 个 .npy fixture + 3 个 .npz Oracle archive 跨语言
+round-trip 全绿；覆盖率 core parser（format+lexer+parser）**98.5%**（130/132）、项目 overall
+**80.7%**（996/1234；分母含 `cmd/` + 示例入口零覆盖行；`src/` 库代码口径 **97.9%**，
+972/993），CI 强制阈值 ≥90% / ≥80%。
+
+计数口径：当前 `tests/` 内有 173 个测试声明（N7 后基线为 167，本轮新增 6 个）；另有
+`src/npz/crc32_wbtest.mbt` 的 1 个和 `examples/npz_write/npz_write_wbtest.mbt` 的 2 个 whitebox
+测试，合计全仓 176 个。M5 行的 159 / 81.7% 是 N7 前的历史快照，不是当前总览。
+
+## 浏览器 WASM 演示
+
+克隆或下载仓库后，在支持 WASM GC 的浏览器中从本地磁盘打开
+[examples/wasm-demo/index.html](examples/wasm-demo/index.html)；GitHub 文件链接只显示源码。
+页面已内嵌 WASM 模块和 `.npy` 样例，也可拖入自己的 `.npy` 文件。在仓库根目录用当前源码
+构建并运行 CI 同款验证器（Node.js `24.11.0`）：
+
+```bash
+moon build --target wasm-gc
+node examples/wasm-demo/verify_demo.mjs \
+  _build/wasm-gc/debug/build/examples/wasm-demo/wasm-demo.wasm \
+  tests/fixtures/f4_2x3_c_le_v1.npy \
+  tests/fixtures/i4_2x3_f_be_v1.npy
+```
+
+修改源码后如需更新页面内嵌模块，运行
+`node examples/wasm-demo/embed.mjs _build/wasm-gc/debug/build/examples/wasm-demo/wasm-demo.wasm`。
 
 ## 特性（Features）
 
@@ -90,7 +116,8 @@ round-trip 全绿；覆盖率 core parser（format+lexer+parser）**98.5%**、�
 
 ## 安装（Installation）
 
-模块清单 `moon.mod` 声明 `name = "ShunjunGu/moon-npy"`、`version = "0.3.0"`、
+当前源码的 `moon.mod` 声明 `name = "ShunjunGu/moon-npy"`、`version = "0.4.0"`
+（**发布候选，尚未发布**）、
 `preferred_target = "native"`，依赖 `moonbitlang/x@0.5.1`（`@fs` 文件 IO）与
 `amor2025/moonNum@0.1.0`（仅 S6 适配器 `src/adapter/moonnum/` 使用，详见下文「生态适配」）。
 核心层（format / header / dtype / reader / writer / error / cli）不依赖任何第三方库。
@@ -98,7 +125,7 @@ round-trip 全绿；覆盖率 core parser（format+lexer+parser）**98.5%**、�
 **作为依赖引入**（已发布于 Mooncakes，`mooncakes.io/docs/ShunjunGu/moon-npy`）：
 
 ```bash
-moon add ShunjunGu/moon-npy
+moon add ShunjunGu/moon-npy@0.3.0
 ```
 
 随后在用到它的包的 `moon.pkg` 里按需 import（包级引用）：
@@ -503,7 +530,7 @@ nd.get_f32(4) // => 4.0
 
 ```text
 moon-npy/
-├── AGENTS.md              # M0 实测固化的工具链事实与项目约定（权威）
+├── AGENTS.md              # 源码仓库维护指南（不进入 Mooncakes 发布包）
 ├── LICENSE                # Apache-2.0
 ├── moon.mod               # 模块清单（ShunjunGu/moon-npy, native）
 ├── src/
@@ -517,12 +544,13 @@ moon-npy/
 │   ├── cli/               # inspect / validate / dump 纯逻辑（parse_args + 渲染，无 IO）
 │   └── adapter/moonnum/   # S6 读方向适配 amor2025/moonNum（本仓唯一第三方依赖）
 ├── cmd/main/              # CLI 可执行薄壳（@fs 读字节 + extern "c" exit 设退出码）
-├── tests/                 # *_test.mbt（167，含 edge / fuzz / security / property / adapter / npz 读写）+ fixtures/（31 *.npy + 3 *.npz + expected.json / npz_expected.json）
+├── tests/                 # *_test.mbt（173，含 edge / fuzz / security / property / adapter / npz 读写）+ fixtures/（31 *.npy + 3 *.npz + expected.json / npz_expected.json）
 ├── interoperability/      # generate_fixtures.py / verify_moonbit_output.py / roundtrip.py / verify_npz_output.py
 ├── examples/roundtrip/    # emit harness（decode -> encode -> write，`moon run`）
 ├── examples/npz_write/    # NPZ emit harness（N7：读 .npy -> encode_npz -> 落盘，`moon run`）
+├── examples/wasm-demo/   # 浏览器 WASM GC 演示 + Node 验证器
 ├── examples/bench/        # 性能基准（§29 形状，四条读取路径，`moon run --release`）
-└── .github/workflows/     # ci.yml（§19：fmt/check/test/coverage/fixture/round-trip）
+└── .github/workflows/     # ci.yml（§19：fmt/check/test/coverage/fixture/round-trip/NPZ/WASM）
 ```
 
 ## 限制（Limitations）
@@ -534,9 +562,10 @@ moonNum 读方向适配（S6）——v0.3.0 只新增 NPZ 容器读取（C1，�
 
 - **不是 NumPy**：无线性代数 / FFT / 广播 / 矩阵运算，无 Tensor framework / 自动微分 /
   模型加载（PyTorch 等）。moon-npy 只做 `.npy` 二进制**序列化 / 反序列化**。
-- **不做其他格式**：GGUF / SafeTensors / Parquet 不在范围内；**NPZ** 自 v0.3.0 起只做**读方向、
-  未压缩**容器（C1），`savez` 写方向、deflate 解压、zip64 仍不实现（见「安全」容器层小节的
-  by-construction 理由）。
+- **不做其他格式**：GGUF / SafeTensors / Parquet 不在范围内。**NPZ** 的未压缩容器读取
+  （`decode_npz`，C1）已随 v0.3.0 发布；未压缩写入（`encode_npz`，N7）已在源码实现并通过
+  NumPy Oracle，但尚未随正式版本发布。压缩 / deflate 读写（含 `savez_compressed`）、zip64、
+  加密成员仍不支持（见「安全」容器层小节）。
 - **dtype 范围**：13 个 dtype —— 11 种 primitive 数值 + complex64 / complex128（见「兼容性
   矩阵」）。**object dtype 主动拒绝**；half / longdouble / complex256 / bytes / str / void /
   structured / datetime / timedelta 识别后返回 `UnsupportedDType`（结构化，非崩溃）。
@@ -594,22 +623,22 @@ NPY 的 object 数组以 Python pickle 为载荷——加载它可能执行任�
 ## 开发（Development）
 
 前置：**MoonBit `0.10.11+6ff76a5f9`**（pinned，显示形式 `0.1.20260827 (d0aaa07)` 仅作展示）、native target；跨语言测试另需 **NumPy `2.3.4`** /
-**Python `3.14`**。工具链事实与语法约定以 [`AGENTS.md`](AGENTS.md) 为**权威**（M0 实测固化，
-禁止基于旧假设臆写）。
+**Python `3.14`**。可复现的工具链版本与门禁见 [验收规范](docs/spec/acceptance.md) §19；
+M0 语法探针记录在源码仓库的 `AGENTS.md`，不进入 Mooncakes 发布包。
 
 **提交前三门**（CI 同款，全绿方可提交）：
 
 ```bash
 moon fmt                                   # 格式化（CI 用 git diff --exit-code 强制无改动）
 moon check --target native                 # 类型检查
-moon test --target native                  # 170 个单元测试
+moon test --target native                  # 176 个单元测试（含 tests/ 173 + 其他包 whitebox 3）
 ```
 
 **覆盖率**（CI 强制阈值门禁：core parser ≥90% / overall ≥80%，未达即失败）：
 
 ```bash
 moon test --target native --enable-coverage; moon coverage analyze
-moon coverage report -f summary            # 当前 core parser 98.5%、overall 80.5%
+moon coverage report -f summary            # 当前 core parser 98.5%、overall 80.7%
 ```
 
 **跨语言互操作**（需 NumPy / Python）：
@@ -629,11 +658,15 @@ python interoperability/roundtrip.py                   # 31 fixture 字节级 ro
 
 ## 持续集成（CI）
 
-[`.github/workflows/ci.yml`](.github/workflows/ci.yml)（§19）在 `ubuntu-latest` 上 pin
-MoonBit `0.10.11+6ff76a5f9`（显示 `0.1.20260827 (d0aaa07)`）/ NumPy `2.3.4` / Python `3.14`，依次跑：`moon fmt`（无 diff）
+源码仓库的 `.github/workflows/ci.yml`（门禁清单见 [验收规范](docs/spec/acceptance.md) §19；
+发布包不含 GitHub 工作流文件）在 `ubuntu-latest` 上 pin
+MoonBit `0.10.11+6ff76a5f9`（显示 `0.1.20260827 (d0aaa07)`）/ NumPy `2.3.4` /
+Python `3.14` / Node.js `24.11.0`，依次跑：`moon fmt`（无 diff）
 → `moon check` → `moon test` → coverage（**强制阈值门禁**：core parser ≥90% / overall ≥80%，未达
 即失败）→ fixture `--check` → `roundtrip.py`（31 fixture emit + verify + byte-exact）→ NPZ 写方向
-（`examples/npz_write` 生成 + `verify_npz_output.py` 校验，含 UTF-8 key 路径）→ CLI 冒烟
+（`examples/npz_write` 生成 + `verify_npz_output.py` 校验，含 UTF-8 key 路径）→ WASM GC demo
+（`moon build --target wasm-gc` + Node.js `verify_demo.mjs`，断言真实样例和错误边界；
+`embed.mjs` 重生浏览器内嵌资源后要求无 diff）→ CLI 冒烟
 （inspect / validate / dump + 退出码 0/1/2，含 `--limit` 截断与坏 `--limit` → 2）。README 展示的
 例子即 CI 实际运行的例子（§19 铁律）。
 

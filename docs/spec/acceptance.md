@@ -36,7 +36,7 @@
 | `附录 A` | fixture 字节契约 | 本文件 附录 A（源 `generate_fixtures.py::parse_npy`） |
 | `附录 A.4` | fixture 生成版本分派 | 本文件 附录 A.4（源 `generate_fixtures.py::write_npy`） |
 | `附录 A.5` | Oracle 值与差异可见性 | 本文件 附录 A.5 |
-| `附录 B` | 工具链实测命令 | `AGENTS.md` §0 / §8（MoonBit 工具链事实） |
+| `附录 B` | 工具链实测命令 | 本文件 §19 与 `README.md` Development（版本 pin / 可执行门禁）；M0 探针详录于源码仓库的 `AGENTS.md`，发布包不含该维护文件 |
 
 > 其它编号（如 `§5`「明确不做什么」、`§6` Stretch、`§29` Demo）属仓库特性/范围说明，
 > 权威落点在 `README.md` 的 Limitations / Round-trip demo 小节，非本验收规范的所有权范围。
@@ -157,10 +157,11 @@ CI fixture 生成（`generate_fixtures.py`）与 round-trip 验证（`roundtrip.
 - **project overall（`Total:` 行）≥ 80%**；
 - 阈值任一跌破 → `awk` 非零退出，该步骤阻塞。未出现在 `-f summary` 的文件视为 100% 覆盖，
   求和只计列出的 core 文件是保守下界。
-- 当前实测（`coverage-summary.txt` / CI，2026-09-13，含 N7 写方向）：core parser **98.5%**（130/132）、
-  overall **80.5%**（984/1222）。Total 分母含 `cmd/` + `examples/` 入口零覆盖行 217
+- 当前本地实测（`moon coverage report -f summary`，2026-09-25，含验收修复）：core parser
+  **98.5%**（130/132）、overall **80.7%**（996/1234）。Total 分母含 `cmd/` + `examples/`
+  入口零覆盖行 217
   （其中 `examples/bench/` 117 行；`examples/npz_write/main.mbt` 经同包白盒测试后为 24/54）；
-  剔除入口后 `src/` 库代码口径为 **97.9%**（960/981，含 `crc32.mbt` 14/14）。
+  剔除入口后 `src/` 库代码口径为 **97.9%**（972/993，含 `crc32.mbt` 14/14）。
   v0.3.0 发布时点为 92.4%（822/890，bench 入库前），bench / npz 写方向入库前快照为
   81.7%（824/1009）。
 
@@ -214,7 +215,8 @@ CI fixture 生成（`generate_fixtures.py`）与 round-trip 验证（`roundtrip.
 事实源：`.github/workflows/ci.yml`（唯一定义处；本节镜像其门禁集合）。
 
 - **版本 pin（可复现）**：`MOONBIT_VERSION = 0.10.11+6ff76a5f9`（对应 `moon version` 显示
-  `0.1.20260827 (d0aaa07)`，见 `AGENTS.md` §0）、`PYTHON_VERSION = 3.14`、`NUMPY_VERSION = 2.3.4`。
+  `0.1.20260827 (d0aaa07)`）、`PYTHON_VERSION = 3.14`、`NUMPY_VERSION = 2.3.4`、
+  `NODE_VERSION = 24.11.0`（WASM GC demo 验证器）。
 - **门禁步骤（顺序）**：
   1. `moon update`（刷新 registry index，冷 runner 依赖解析所需，不触碰 pin 定的工具链）；
   2. **Gate 1/3 fmt**：`moon fmt` 后 `git diff --exit-code`；
@@ -224,11 +226,18 @@ CI fixture 生成（`generate_fixtures.py`）与 round-trip 验证（`roundtrip.
   6. **fixture drift**：`python interoperability/generate_fixtures.py --check`（门禁 31 个
      `.npy` fixture 对 `expected.json` + 3 个 NPZ 归档对 `npz_expected.json` 的 `sha256` 一致性）；
   7. **round-trip**：`python interoperability/roundtrip.py -v`（见 §16）；
-  8. **CLI + 退出码**：`moon run cmd/main --target native -- {inspect,validate,dump}` 及非零码断言（见 §13）。
+  8. **NPZ 写方向 Oracle（N7）**：两次 `moon run examples/npz_write --target native` 生成普通键和
+     UTF-8 键的未压缩归档；`python interoperability/verify_npz_output.py` 验证
+     `zipfile.testzip()` CRC-32、所有成员为 `ZIP_STORED` 且以 `.npy` 结尾、`np.load` 可读，
+     并按键逐成员比较 dtype / shape / 数值。UTF-8 键须在 ZIP 与 NumPy 中保持一致；
+  9. **浏览器 WASM GC demo**：`moon build --target wasm-gc` 后用
+     `node examples/wasm-demo/verify_demo.mjs` 加载构建的 `.wasm` 与真实 `.npy` fixture；
+     断言无宿主 imports、有效 inspect 报告、畸形输入返回结构化失败，以及越界输出访问返回 `-1`；
+     再运行 `embed.mjs` 重生浏览器实际加载的 `wasm-demo-b64.js` / `samples.js` 并要求 Git 无 diff；
+  10. **CLI + 退出码**：`moon run cmd/main --target native -- {inspect,validate,dump}` 及非零码断言（见 §13）。
 - **铁律**：README 展示的例子必须是 CI 中实际运行的例子（Demo 进 CI）。
 
-**本地三步纪律（与 CI Gate 1–3 对应，见 `AGENTS.md` §8）**：fmt / check / test。本规范不改变该纪律，
-仅调整验收边界的**引用指向**。
+**本地三步纪律（与 CI Gate 1–3 对应）**：fmt / check / test，命令见 `README.md` Development。
 
 ---
 
@@ -247,5 +256,6 @@ CI fixture 生成（`generate_fixtures.py`）与 round-trip 验证（`roundtrip.
 > **NumPy fixtures → MoonBit reads → MoonBit re-emits → NumPy verifies**
 > （`np.array_equal` + 逐字节一致）——即 §16 双向 round-trip 对全部 31 个入库 fixture 通过。
 
-达成 §23 当且仅当 §19 全部门禁步骤绿：三工具链版本 pin 一致、fmt 无 diff、check/test 通过、
-覆盖率两阈值达标、fixture 无漂移、round-trip 全绿、CLI 退出码 0/1/2 且两非零码互异。
+达成 §23 当且仅当 §19 全部门禁步骤绿：MoonBit / Python / NumPy / Node.js 版本 pin 一致、
+fmt 无 diff、check/test 通过、覆盖率两阈值达标、fixture 无漂移、round-trip、NPZ 写方向
+Oracle 与 WASM GC demo 验证全绿、CLI 退出码 0/1/2 且两非零码互异。

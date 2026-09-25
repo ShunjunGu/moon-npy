@@ -200,19 +200,25 @@ pub fn decode_npz(data : Bytes) -> Result[NpzArchive, @error.NpyError] {
   if cd_offset + cd_size > eocd.to_int64() {
     return Err(@error.NpzBadStructure("central directory out of range"))
   }
+  let cd_end = (cd_offset + cd_size).to_int()
   let members : Array[NpzMember] = []
   let seen : Array[String] = []
   let mut pos = cd_offset.to_int()
   for i = 0; i < total_entries; i = i + 1 {
     // Central-directory record: 46 fixed bytes + name + extra + comment.
-    if pos + 46 > file_len || !match_sig(data, pos, sig_central) {
+    if pos.to_int64() + 46 > cd_end.to_int64() ||
+      !match_sig(data, pos, sig_central) {
       return Err(@error.NpzBadStructure("central directory entry \{i}"))
     }
     let name_len = @format.read_u16_le(data, pos + 28)
     let extra_len = @format.read_u16_le(data, pos + 30)
     let comment_len = @format.read_u16_le(data, pos + 32)
-    let next = pos + 46 + name_len + extra_len + comment_len
-    if next > file_len {
+    let next = pos.to_int64() +
+      46 +
+      name_len.to_int64() +
+      extra_len.to_int64() +
+      comment_len.to_int64()
+    if next > cd_end.to_int64() {
       return Err(@error.NpzBadStructure("central directory entry \{i}"))
     }
     let comp_method = @format.read_u16_le(data, pos + 10)
@@ -265,18 +271,24 @@ pub fn decode_npz(data : Bytes) -> Result[NpzArchive, @error.NpyError] {
       Err(e) => return Err(e) // NPY-layer errors pass through unchanged
     }
     members.push(NpzMember::{ name, array, })
-    pos = next
+    pos = next.to_int()
+  }
+  if pos != cd_end {
+    return Err(@error.NpzBadStructure("central directory size mismatch"))
   }
   Ok(NpzArchive::{ members, })
 }
 
 ///|
 // True when a member name must never become a filesystem-style key:
-// any path separator (a single '/' or '\' already covers traversal,
+// an empty key or any path separator (a single '/' or '\' covers traversal,
 // absolute paths and multi-segment names), a bare ".." segment, or a
 // Windows drive-letter root ("C:..."). Refused before extraction, so the
 // name never reaches a consumer.
 fn unsafe_member_name(name : String) -> Bool {
+  if name.length() == 0 {
+    return true
+  }
   for c in name {
     if c == '/' || c == '\\' {
       return true

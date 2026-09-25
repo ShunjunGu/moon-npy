@@ -3,7 +3,7 @@
 // seeds, so any failure is exactly reproducible -- no flakiness, no wall-clock
 // entropy, and the run is byte-identical across machines and CI.
 //
-// The single invariant under test is §18 totality: for ANY Bytes, decode() and
+// The NPY invariant under test is §18 totality: for ANY Bytes, decode() and
 // validate() must return Ok or a structured Err(NpyError) -- never a crash, hang,
 // out-of-bounds read, or runaway allocation. A trap (abort) anywhere aborts the
 // whole `moon test` run, so a GREEN fuzz run is itself the no-crash proof. The
@@ -143,5 +143,161 @@ test "fuzz_fixture_mutations" {
   for k = 0; k < 3000; k = k + 1 {
     let idx = rng.next_uint64(limit=fixtures.length().to_uint64()).to_int()
     check_total(mutate(rng, fixtures[idx]))
+  }
+}
+
+// NPZ fuzz uses the same fixed-seed PRNG, but exercises the ZIP framing and
+// central-directory walk before a member reaches the NPY reader. A trap in
+// decode_npz or get aborts moon test. On every successful decode, the public
+// names and lookup APIs must describe the same members in directory order.
+
+///|
+fn check_npz_total(blob : Bytes) -> Unit raise {
+  match @npz.decode_npz(blob) {
+    Err(_) => ()
+    Ok(archive) => {
+      let names = archive.names()
+      assert_eq(names.length(), archive.members.length())
+      for i = 0; i < names.length(); i = i + 1 {
+        assert_eq(names[i], archive.members[i].name)
+        match archive.get(names[i]) {
+          Ok(found) => assert_eq(found.name, names[i])
+          Err(_) => assert_true(false)
+        }
+        for j = 0; j < i; j = j + 1 {
+          assert_true(names[j] != names[i])
+        }
+      }
+    }
+  }
+}
+
+///|
+// Each mode changes a real Oracle archive in a guaranteed way. In particular,
+// truncation removes at least one byte, bit flipping changes exactly one byte,
+// and appending adds at least one byte.
+fn mutate_npz(
+  rng : @splitmix.RandomState,
+  original : Bytes,
+  mode : Int,
+) -> Bytes {
+  let n = original.length()
+  if mode == 0 {
+    let keep = rng.next_uint64(limit=n.to_uint64()).to_int() // [0, n-1]
+    let prefix : Array[Byte] = []
+    for i = 0; i < keep; i = i + 1 {
+      prefix.push(original[i])
+    }
+    return Bytes::from_array(prefix)
+  }
+  let bytes = original.to_array()
+  if mode == 1 {
+    let i = rng.next_uint64(limit=n.to_uint64()).to_int()
+    bytes[i] = (bytes[i].to_int() ^ 1).to_byte()
+  } else {
+    let extra = 1 + rng.next_uint64(limit=16UL).to_int()
+    for j = 0; j < extra; j = j + 1 {
+      bytes.push(rng.next_int().to_byte())
+    }
+  }
+  Bytes::from_array(bytes)
+}
+
+///|
+test "fuzz_npz_random_bytes_totally_decodes" {
+  let rng = @splitmix.new(seed=0x4E505AUL)
+  for k = 0; k < 2000; k = k + 1 {
+    let length = k % 1025 // guarantee every length from 0 through 1024
+    let bytes : Array[Byte] = []
+    for i = 0; i < length; i = i + 1 {
+      bytes.push(rng.next_int().to_byte())
+    }
+    check_npz_total(Bytes::from_array(bytes))
+  }
+}
+
+///|
+test "fuzz_npz_oracle_fixture_mutations" {
+  let rng = @splitmix.new(seed=0xA11CE5UL)
+  let fixtures = [
+    load_fixture("npz_3arr_c_le_v1.npz"),
+    load_fixture("npz_customkey_c_le_v1.npz"),
+    load_fixture("npz_deflated_c_le_v1.npz"),
+  ]
+  for fixture in fixtures {
+    check_npz_total(fixture)
+    for k = 0; k < 300; k = k + 1 {
+      check_npz_total(mutate_npz(rng, fixture, k % 3))
+    }
+  }
+}
+
+///|
+fn patch_npz_eocd_u16(
+  original : Bytes,
+  eocd : Int,
+  field : Int,
+  value : Int,
+) -> Bytes {
+  let encoded : Array[Byte] = []
+  put_u16(encoded, value)
+  patch_bytes(original, eocd + field, encoded)
+}
+
+///|
+fn patch_npz_eocd_u32(
+  original : Bytes,
+  eocd : Int,
+  field : Int,
+  value : Int,
+) -> Bytes {
+  let encoded : Array[Byte] = []
+  put_u32(encoded, value)
+  patch_bytes(original, eocd + field, encoded)
+}
+
+///|
+test "fuzz_npz_eocd_offset_size_and_count" {
+  let rng = @splitmix.new(seed=0xE0CD5EEDUL)
+  let fixtures = [
+    load_fixture("npz_3arr_c_le_v1.npz"),
+    load_fixture("npz_customkey_c_le_v1.npz"),
+  ]
+  for fixture in fixtures {
+    // Both pinned NumPy fixtures have no ZIP comment, so EOCD is the final 22
+    // bytes. Assert that layout before patching any field.
+    let eocd = fixture.length() - 22
+    assert_eq(fixture[eocd], b'P')
+    assert_eq(fixture[eocd + 1], b'K')
+    assert_eq(fixture[eocd + 2], b'\x05')
+    assert_eq(fixture[eocd + 3], b'\x06')
+    assert_eq(@format.read_u16_le(fixture, eocd + 20), 0)
+    for field in [12, 16] { // central-directory size and offset (u32)
+      let current = @format.read_u32_le(fixture, eocd + field).to_int()
+      for value in [0, current - 1, current + 1, eocd + 1, 0x7FFFFFFF] {
+        check_npz_total(patch_npz_eocd_u32(fixture, eocd, field, value))
+      }
+      check_npz_total(patch_bytes(fixture, eocd + field, ffffffff))
+      for k = 0; k < 100; k = k + 1 {
+        let raw = [
+          rng.next_int().to_byte(),
+          rng.next_int().to_byte(),
+          rng.next_int().to_byte(),
+          rng.next_int().to_byte(),
+        ]
+        check_npz_total(patch_bytes(fixture, eocd + field, raw))
+      }
+    }
+    for field in [8, 10] { // entries on disk and total entries (u16)
+      let count = @format.read_u16_le(fixture, eocd + field)
+      for value in [0, count - 1, count + 1, 0xFFFE] {
+        check_npz_total(patch_npz_eocd_u16(fixture, eocd, field, value))
+      }
+      check_npz_total(patch_bytes(fixture, eocd + field, ffff))
+      for k = 0; k < 100; k = k + 1 {
+        let raw = [rng.next_int().to_byte(), rng.next_int().to_byte()]
+        check_npz_total(patch_bytes(fixture, eocd + field, raw))
+      }
+    }
   }
 }

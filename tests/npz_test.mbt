@@ -282,6 +282,50 @@ test "npz_reject_central_directory_out_of_range" {
 }
 
 ///|
+test "npz_reject_central_directory_size_too_small" {
+  let img = one_member_image()
+  let actual_size = img.eocd - img.cd[0]
+  let smaller = actual_size - 1
+  let patched = patch_bytes(img.bytes, img.eocd + 12, [
+    (smaller % 256).to_byte(),
+    (smaller / 256 % 256).to_byte(),
+    b'\x00',
+    b'\x00',
+  ])
+  match @npz.decode_npz(patched) {
+    Err(@error.NpzBadStructure(_)) => ()
+    _ => assert_true(false)
+  }
+}
+
+///|
+test "npz_reject_central_directory_size_too_large_with_eocd_gap" {
+  // Keep the enlarged declaration within the EOCD bound: insert one byte
+  // before EOCD, then claim it belongs to the central directory.
+  let img = one_member_image()
+  let arr = img.bytes.to_array()
+  let padded : Array[Byte] = []
+  for i = 0; i < img.eocd; i = i + 1 {
+    padded.push(arr[i])
+  }
+  padded.push(b'\x00')
+  for i = img.eocd; i < arr.length(); i = i + 1 {
+    padded.push(arr[i])
+  }
+  let claimed_size = img.eocd - img.cd[0] + 1
+  let patched = patch_bytes(Bytes::from_array(padded), img.eocd + 1 + 12, [
+    (claimed_size % 256).to_byte(),
+    (claimed_size / 256 % 256).to_byte(),
+    b'\x00',
+    b'\x00',
+  ])
+  match @npz.decode_npz(patched) {
+    Err(@error.NpzBadStructure(_)) => ()
+    _ => assert_true(false)
+  }
+}
+
+///|
 test "npz_reject_bad_central_directory_signature" {
   // Point cd_offset at the member payload instead of the CD record.
   let img = one_member_image()
@@ -327,6 +371,22 @@ test "npz_member_name_kept_without_npy_suffix" {
   ])
   match @npz.decode_npz(img.bytes) {
     Ok(arch) => assert_eq(arch.members[0].name, "plain")
+    _ => assert_true(false)
+  }
+}
+
+///|
+test "npz_reject_empty_key_from_npy_member_name" {
+  let img = build_zip([
+    {
+      name: @utf8.encode(".npy"),
+      comp_method: 0,
+      gp_flags: 0,
+      payload: npy_v1(i4_header, i4_six()),
+    },
+  ])
+  match @npz.decode_npz(img.bytes) {
+    Err(@error.NpzUnsafeMemberName("")) => ()
     _ => assert_true(false)
   }
 }

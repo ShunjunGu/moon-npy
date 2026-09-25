@@ -8,8 +8,17 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+本节为 v0.4.0 发布候选内容；尚未发布，正式日期待发布时填写。
+
 ### Added
 
+- **NPZ 变异鲁棒性门禁** — 固定种子 fuzz 覆盖任意字节、NumPy 真实归档的截断 / 翻转 /
+  追加，以及 EOCD 的目录偏移、大小、条目数字段；成功解析时核对 `names()` / `get()`
+  与成员顺序。连同目录边界回归，全仓测试数 **170 → 176**（`tests/` 173，另有 3 个
+  whitebox）。
+- **浏览器 WASM Demo 验证门禁** — README 增加演示入口与本地命令；CI 构建 wasm-gc
+  后运行带断言的 `verify_demo.mjs`，核对真实 `.npy`、畸形输入及越界访问，并重生
+  浏览器内嵌资源要求无差异。
 - **性能基准（`examples/bench/`）** — §29 形状（100×768 float32，307328 B）四条读取路径
   release 实测（Windows 11 25H2 · MoonBit `0.10.11+6ff76a5f9`（显示形式 `0.1.20260827 (d0aaa07)` 仅作展示）· 2026-09-10）：fs read
   （热缓存）53.0 µs / 5804 MB/s、decode（validate + payload 拷贝）266.7 µs / 1152 MB/s、
@@ -30,6 +39,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- **发布归档规则** — `.moonignore` 继承原 `.gitignore` 的构建产物排除规则，并排除
+  `AGENTS.md` 与本轮内部验收整改清单；`moon package --list` 确认二者未进入归档。
+- **验收文档与 CI 同步** — 两份 README 修正 NPZ 未压缩读写能力、M5 历史测试快照与
+  当前 **176 / 80.7%** 总览；`docs/spec/acceptance.md` §19 补录 N7 NumPy Oracle
+  和 WASM Demo 门禁。
 - 文档：`README.md` / `README_CN.md` 新增 Performance 小节（环境 + 命令 + 数字三段式，
   含 chunk 路径与全量路径的量化对比）、Layout 补 `examples/bench/`。
 - 文档：`README.md` / `README_CN.md` 同步 N7 — Status 表、Features「NPZ 写方向」子弹、
@@ -44,6 +58,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **NPZ central-directory 长度校验** — 每条记录均受 EOCD 声明的目录末尾约束，遍历
+  后要求实际终点与声明长度一致；缩小和放大 `cd_size` 的畸形归档均返回结构化错误。
+- **NPZ 空成员 key** — 读入仅名为 `.npy` 的成员与写入空 key 均返回
+  `NpzUnsafeMemberName("")`，防止产生无法正常命名的归档成员。
 - **解析器整数回绕（2 处）** — `parse_dtype` 的 descr size 累加（`src/dtype/dtype.mbt`）
   与 header lexer 的 shape 维度累加（`src/header/lexer.mbt`）此前均无溢出守卫：`<f4294967300`
   （= 2^32 + 4）被静默接受为 `f4`、shape `(2^64 + 1,)` 被静默截断为长度 1，均与「绝不静默

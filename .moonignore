@@ -1,0 +1,54 @@
+# --- MoonBit ---
+_build/
+.mooncakes/
+pkg.generated.mbti
+# moon.lock 需入库以保证依赖可复现（§19），故不忽略
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+
+# --- coverage（moon coverage 产物）---
+*.coverage
+bisect.coverage
+uncovered.log
+coverage-summary.txt
+
+# --- OS / editor ---
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# --- agent tooling（本机运行时状态）---
+# OMC 会话状态 / 日志 / 计划草稿，仅本机有效，不入库。
+.omc/
+# Qoder 本机运行时产物（better-harness 报告 / canvas 等），不入库。
+.qoder/
+
+# --- stale local artifacts ---
+# Canonical NPY fixtures live in tests/fixtures/ (produced by
+# interoperability/generate_fixtures.py and tracked via expected.json). The
+# directory below holds superseded duplicates from an earlier draft naming
+# scheme (f32_2x3_v10/v20/v30) that are byte-identical to tests/fixtures/*.npy
+# and referenced by nothing. Ignored so they cannot re-enter staging.
+interoperability/fixtures/
+
+# --- publish archive only: operator and local private files ---
+/AGENTS.md
+/CLAUDE.md
+/.agents/
+/.codex/
+/.claude/
+/docs/final-acceptance-remediation-checklist.md
+.env
+.env.*
+*.pem
+*.key
+*credentials*.json
+*auth*.json
+*token*.json
