@@ -45,6 +45,7 @@ interoperability/fixtures/
 /.codex/
 /.claude/
 /docs/final-acceptance-remediation-checklist.md
+/docs/contest-final-week-task-checklist.md
 .env
 .env.*
 *.pem

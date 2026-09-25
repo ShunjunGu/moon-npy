@@ -106,6 +106,8 @@ UTF-8 key）、WASM verifier 与内嵌资源无差异检查均通过。`moon pac
 
 ## 整改与剩余执行清单
 
+赛前日期、完成标准和交付回执统一跟踪在[最后阶段任务清单](contest-final-week-task-checklist.md)。
+
 - [x] 修订并同步 README 中 NPZ 能力说明；澄清 M5 历史值、当前值和 `tests/` / 全仓计数。
 - [x] 在 `docs/spec/acceptance.md` §19 同步 NPZ 写方向 Oracle 门禁。
 - [x] 修复并覆盖 central-directory 长度不一致与空 NPZ key 两个边界。
