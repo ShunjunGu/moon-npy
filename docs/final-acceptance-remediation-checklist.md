@@ -16,7 +16,7 @@
 | R1 | ✅ 英中 README 均明确：v0.3.0 已发布未压缩 NPZ 读取；`main` 已实现未压缩写入，但尚未发布；压缩 / deflate、zip64、加密仍不支持。 |
 | R2 | ✅ M5 的 159 / 81.7% 标为 N7 前历史快照；当前为 `tests/` 173 + whitebox 3 = 全仓 176，overall 80.7%。 |
 | R3 | ✅ `docs/spec/acceptance.md` §19 已镜像 CI 的 NPZ 写入 Oracle，含 CRC-32、ZIP_STORED、`np.load` 和 UTF-8 key。 |
-| R4 | ⏳ v0.4.0 经公开 API 差异核对可作向后兼容的 minor 候选，`moon.mod` 与 changelog 已按**未发布候选**准备；远端 CI、GitHub Release 和 Mooncakes 发布仍待完成。已在沙箱外用 `gh auth status` 与 `gh api user` 确认 GitHub 登录有效；沙箱内的认证失败是执行环境限制。 |
+| R4 | ⏳ v0.4.0 经公开 API 差异核对可作向后兼容的 minor 候选，`moon.mod` 与 changelog 已按**未发布候选**准备；修复提交 `e37a993` 已推送 `main`，其[远端 CI](https://github.com/ShunjunGu/moon-npy/actions/runs/36151811683)通过；GitHub Release 和 Mooncakes 发布仍待决定。已在沙箱外用 `gh auth status` 与 `gh api user` 确认 GitHub 登录有效；沙箱内的认证失败是执行环境限制。 |
 | R5 | ✅ central-directory 的每条记录均受声明末尾约束，遍历终点也须等于 `cd_offset + cd_size`；缩小 / 放大声明的回归测试已通过。 |
 | R6 | ✅ 读入 `.npy` 成员名、写入空 key 均返回 `NpzUnsafeMemberName("")`；回归测试已通过。 |
 | R7 | ✅ 固定种子 `decode_npz` fuzz 覆盖任意字节、真实归档变异及 EOCD 字段变异；成功解析时检查 `names()` / `get()` 自洽。 |
@@ -27,8 +27,9 @@
 （176/176）、coverage（core parser 130/132 = 98.5%，overall 996/1234 = 80.7%）、
 NumPy fixture drift（31 + 3）、31/31 字节级 round-trip、NPZ 写入 Oracle（4 成员 +
 UTF-8 key）、WASM verifier 与内嵌资源无差异检查均通过。`moon package` 归档解压到独立目录后，类型检查、
-176 项测试、fixture 校验、WASM Demo 与 NPZ 写入 Oracle 再次通过。GitHub Actions
-尚未在修复提交上远程运行。
+176 项测试、fixture 校验、WASM Demo 与 NPZ 写入 Oracle 再次通过。修复提交 `e37a993`
+的 [GitHub Actions CI](https://github.com/ShunjunGu/moon-npy/actions/runs/36151811683)
+已通过格式、检查、测试、覆盖率、互操作、NPZ 写入 Oracle、WASM Demo 和 CLI 门禁。
 
 ## 核对摘要
 
@@ -110,7 +111,7 @@ UTF-8 key）、WASM verifier 与内嵌资源无差异检查均通过。`moon pac
 - [x] 修复并覆盖 central-directory 长度不一致与空 NPZ key 两个边界。
 - [x] 为 `decode_npz` 增加确定性变异 fuzz。
 - [x] 在 README 展示 WASM Demo，并将 verifier 接入 CI / §19。
-- [ ] 发行：已完成 v0.4.0 候选兼容性评估并更新 manifest 与未发布 changelog，GitHub 登录已核验；待确认远端提交方式与正式发布、填写实际发布日期、验证远端 CI 后发布 GitHub Release 与 Mooncakes 包。
+- [ ] 发行：已完成 v0.4.0 候选兼容性评估并更新 manifest 与未发布 changelog，GitHub 登录已核验；修复提交已推送 `main` 且远端 CI 通过。正式发布仍待决定；发布时填写实际发布日期，再验证 GitHub Release、Mooncakes 包与干净环境安装结果。
 - [x] 将当前工作树打包并解压到独立目录，复现构建、测试、fixture、WASM Demo 与 NPZ 写入 Oracle。
 - [ ] 核实正式验收提交入口并完成提交：赛事[官方页面](https://moonbitlang.github.io/Hackathon2026/)写明 2026-09-30 报名与验收截止；[公开源码](https://github.com/moonbitlang/Hackathon2026/blob/main/src/App.tsx)仅给出报名表，独立验收入口及具体时刻仍需从[正式章程](https://bxup9uklfcb.feishu.cn/wiki/Dx4Bwd6D1i3GfHkajQCcF7SznEd)或组委会通知确认。
 - [ ] （可选）仅在项目工作流需要时用真实 Issue / PR 跟踪与交付，不补造历史。
