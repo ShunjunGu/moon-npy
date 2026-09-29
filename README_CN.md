@@ -8,6 +8,8 @@ Python FFI**。它是一个*格式互操作层*，**不是** NumPy 的重新实�
 
 > English / 双语版见 [`README.md`](README.md)。
 
+评审入口：[三个场景的复现材料与 1–2 分钟评审路径](docs/contest-review-guide.md)。
+
 ## 生态位（Ecosystem Position）
 
 ```text
@@ -49,7 +51,7 @@ Python FFI**。它是一个*格式互操作层*，**不是** NumPy 的重新实�
 已发布的 v0.3.0 包只包含未压缩 NPZ **读取**（C1）；NPZ **写入**（N7）已在本仓库源码实现，
 尚未随正式版本发布。下方 N7 命令需从源码检出运行。
 
-锁定工具链（CI 复现基准）：**MoonBit `0.10.11+6ff76a5f9`**（显示形式 `0.1.20260827 (d0aaa07)` 仅作展示）· **NumPy `2.3.4`** · Python `3.14` · Node.js `24.11.0`（WASM 验证器）。
+锁定工具链（CI 复现基准）：**moonc `0.10.14+7d59c7ec9`**（`moon version` 显示 `0.1.20260920 (914d7da)`）· **NumPy `2.3.4`** · Python `3.14` · Node.js `24.11.0`（WASM 验证器）。
 176 个单元测试（`moon test --target native`）+ 31 个 .npy fixture + 3 个 .npz Oracle archive 跨语言
 round-trip 全绿；覆盖率 core parser（format+lexer+parser）**98.5%**（130/132）、项目 overall
 **80.7%**（996/1234；分母含 `cmd/` + 示例入口零覆盖行；`src/` 库代码口径 **97.9%**，
@@ -622,7 +624,7 @@ NPY 的 object 数组以 Python pickle 为载荷——加载它可能执行任�
 
 ## 开发（Development）
 
-前置：**MoonBit `0.10.11+6ff76a5f9`**（pinned，显示形式 `0.1.20260827 (d0aaa07)` 仅作展示）、native target；跨语言测试另需 **NumPy `2.3.4`** /
+前置：**moonc `0.10.14+7d59c7ec9`**（CI pin；`moon version` 显示 `0.1.20260920 (914d7da)`）、native target；跨语言测试另需 **NumPy `2.3.4`** /
 **Python `3.14`**。可复现的工具链版本与门禁见 [验收规范](docs/spec/acceptance.md) §19；
 M0 语法探针记录在源码仓库的 `AGENTS.md`，不进入 Mooncakes 发布包。
 
@@ -660,7 +662,7 @@ python interoperability/roundtrip.py                   # 31 fixture 字节级 ro
 
 源码仓库的 `.github/workflows/ci.yml`（门禁清单见 [验收规范](docs/spec/acceptance.md) §19；
 发布包不含 GitHub 工作流文件）在 `ubuntu-latest` 上 pin
-MoonBit `0.10.11+6ff76a5f9`（显示 `0.1.20260827 (d0aaa07)`）/ NumPy `2.3.4` /
+moonc `0.10.14+7d59c7ec9`（`moon version` 显示 `0.1.20260920 (914d7da)`）/ NumPy `2.3.4` /
 Python `3.14` / Node.js `24.11.0`，依次跑：`moon fmt`（无 diff）
 → `moon check` → `moon test` → coverage（**强制阈值门禁**：core parser ≥90% / overall ≥80%，未达
 即失败）→ fixture `--check` → `roundtrip.py`（31 fixture emit + verify + byte-exact）→ NPZ 写方向

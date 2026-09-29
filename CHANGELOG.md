@@ -39,6 +39,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- **验收工具链升级** — CI pin 更新为 `moonc 0.10.14+7d59c7ec9`；在该版本下通过
+  native 检查、176 个测试、CLI 构建、WASM 构建、31 个 NumPy 往返样例及 NPZ Oracle；
+  浏览器 Demo 的内嵌 WASM 随新编译器重生。2026-09-29 的覆盖率为核心解析器
+  130/132（98.5%）、整体 996/1234（80.7%）。
 - **发布归档规则** — `.moonignore` 继承原 `.gitignore` 的构建产物排除规则，并排除
   `AGENTS.md` 与本轮内部验收整改清单；`moon package --list` 确认二者未进入归档。
 - **验收文档与 CI 同步** — 两份 README 修正 NPZ 未压缩读写能力、M5 历史测试快照与

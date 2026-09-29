@@ -214,8 +214,8 @@ CI fixture 生成（`generate_fixtures.py`）与 round-trip 验证（`roundtrip.
 
 事实源：`.github/workflows/ci.yml`（唯一定义处；本节镜像其门禁集合）。
 
-- **版本 pin（可复现）**：`MOONBIT_VERSION = 0.10.11+6ff76a5f9`（对应 `moon version` 显示
-  `0.1.20260827 (d0aaa07)`）、`PYTHON_VERSION = 3.14`、`NUMPY_VERSION = 2.3.4`、
+- **版本 pin（可复现）**：`MOONBIT_VERSION = 0.10.14+7d59c7ec9`（对应 `moon version` 显示
+  `0.1.20260920 (914d7da)`）、`PYTHON_VERSION = 3.14`、`NUMPY_VERSION = 2.3.4`、
   `NODE_VERSION = 24.11.0`（WASM GC demo 验证器）。
 - **门禁步骤（顺序）**：
   1. `moon update`（刷新 registry index，冷 runner 依赖解析所需，不触碰 pin 定的工具链）；

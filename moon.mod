@@ -1,4 +1,4 @@
-// moon-npy module manifest (M0 gate verified, moon 0.1.20260827; see AGENTS.md §9).
+// moon-npy module manifest (current CI: moonc v0.10.14; historical M0 gate: AGENTS.md §9).
 name = "ShunjunGu/moon-npy"
 
 version = "0.4.0"
