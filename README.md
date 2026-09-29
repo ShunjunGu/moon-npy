@@ -50,10 +50,10 @@ For contest review: [reproducible scenarios and a 1–2 minute walkthrough](docs
 | **S4** storage-order 分块读取（v0.2.0 Stretch，§6） | ✅ `src/reader/`（`flat_range` + `to_f32_chunk` / `to_f64_chunk`）、`src/error/` + `src/cli/`（第 13 变体 `InvalidChunkRange` 及其渲染） |
 | **S6** moonNum 生态适配（v0.2.0 Stretch，§6） | ✅ `src/adapter/moonnum/`（读方向 `to_moonnum_f32` / `to_moonnum_f64`）；选型 go/no-go 见 [`docs/s6-api-card.md`](docs/s6-api-card.md) |
 | **C1** NPZ 容器读取（v0.3.0，未压缩） | ✅ `src/npz/`（`decode_npz` → `NpzArchive`，`get(name)` / `names()`；压缩 / zip64 / 路径穿越 / 重复成员容器层拒绝） |
-| **N7** NPZ 写方向（savez encode，Unreleased） | ✅ `src/npz/`（`encode_npz` + 自实现 CRC-32；`np.load` Oracle 验收 + CI，见 Features） |
+| **N7** NPZ 写方向（savez encode，v0.4.0） | ✅ `src/npz/`（`encode_npz` + 自实现 CRC-32；`np.load` Oracle 验收 + CI，见 Features） |
 
-已发布的 v0.3.0 包只包含未压缩 NPZ **读取**（C1）；NPZ **写入**（N7）已在本仓库源码实现，
-尚未随正式版本发布。下方 N7 命令需从源码检出运行。
+v0.3.0 引入未压缩 NPZ **读取**（C1）；v0.4.0 发布未压缩 NPZ **写入**（N7）。
+下方 N7 CLI 演示从源码检出运行，库 API 可通过 Mooncakes v0.4.0 引入。
 
 Pinned toolchain（CI 复现基准）：**moonc `0.10.14+7d59c7ec9`**（`moon version` 显示 `0.1.20260920 (914d7da)`）· **NumPy `2.3.4`** · Python `3.14` · Node.js `24.11.0`（WASM verifier）。
 176 个单元测试（`moon test --target native`）+ 31 个 .npy fixture + 3 个 .npz Oracle archive 跨语言
@@ -114,7 +114,7 @@ To refresh the page's embedded module after a source change, run
   NPY decode 路径。五类拒绝均为结构化错误：压缩成员（`NpzCompressedMember`）、路径穿越
   （`NpzUnsafeMemberName`）、重复成员（`NpzDuplicateMember`）、zip64（`NpzZip64Unsupported`）、
   结构损坏或加密（`NpzBadStructure`）——见 Security 的容器层小节。
-- ✅ **NPZ 写方向（N7，Unreleased）** — `encode_npz` 产出**未压缩**、可被 `np.savez` 家族互操作的
+- ✅ **NPZ 写方向（N7，v0.4.0）** — `encode_npz` 产出**未压缩**、可被 `np.savez` 家族互操作的
   ZIP 容器：全 ZIP_STORED、真实 CRC-32（`src/npz/crc32.mbt` 自实现，无第三方依赖）、固定
   1980-01-01 时间戳、无 zip64 / extra field，逐字节确定性；非 ASCII key 置 UTF-8 名字标志
   （GP bit 11）。拒绝面与读侧一一对应（不安全 / 重复 key、zip64 面）。Oracle 验收：
@@ -124,7 +124,7 @@ To refresh the page's embedded module after a source change, run
 ## Installation
 
 当前源码的 `moon.mod` 声明 `name = "ShunjunGu/moon-npy"`、`version = "0.4.0"`
-（**发布候选，尚未发布**）、
+（已发布）、
 `preferred_target = "native"`，依赖 `moonbitlang/x@0.5.1`（`@fs` 文件 IO）与
 `amor2025/moonNum@0.1.0`（仅 S6 适配器 `src/adapter/moonnum/` 使用，详见下文 Ecosystem
 Adapter）。核心层（format / header / dtype / reader / writer / error / cli）不依赖任何第三方库。
@@ -132,7 +132,7 @@ Adapter）。核心层（format / header / dtype / reader / writer / error / cli
 **作为依赖引入**（已发布于 Mooncakes，`mooncakes.io/docs/ShunjunGu/moon-npy`）：
 
 ```bash
-moon add ShunjunGu/moon-npy@0.3.0
+moon add ShunjunGu/moon-npy@0.4.0
 ```
 
 随后在用到它的包的 `moon.pkg` 里按需 import（包级引用）：
@@ -306,7 +306,7 @@ Reading the numbers (scope, stated honestly):
 object（`\|O`，**主动拒绝**，见 Security）、half / longdouble（`e`/`g`）、complex256（`C`）、
 bytes / str（`S`/`U`）、void / structured（`V`）、datetime / timedelta（`M`/`m`）。GGUF /
 SafeTensors / Parquet 不在范围内；**NPZ** 自 v0.3.0 起支持**未压缩**容器的读取，写方向
-（`encode_npz`，N7）已实现并经 `np.load` Oracle 验收（尚未随版本发布）；压缩 / zip64 /
+（`encode_npz`，N7）自 v0.4.0 发布并经 `np.load` Oracle 验收；压缩 / zip64 /
 加密成员在容器层拒绝（读、写两侧同口径，见 Security）。
 
 当前入库 fixture 集（**31 个**）：float32 `(2,3)` C-order × v1.0 / v2.0 / v3.0（覆盖 uint16 与
@@ -428,7 +428,7 @@ pub fn NpyArray::to_f64_chunk(self, start : Int, len : Int) -> Result[Array[Doub
 // src/writer — 序列化回字节级对齐 np.save 的 NPY
 pub fn encode(array : NpyArray) -> Result[Bytes, NpyError]
 
-// src/npz — NPZ（np.savez ZIP 容器）读写：未压缩（读 v0.3.0 C1；写 N7，Unreleased）
+// src/npz — NPZ（np.savez ZIP 容器）读写：未压缩（读 v0.3.0 C1；写 v0.4.0 N7）
 pub struct NpzArchive { members : Array[NpzMember] } // 成员序 = central directory 序
 pub(all) struct NpzMember { name : String; array : @reader.NpyArray } // name 已剥 .npy 后缀
 pub fn decode_npz(data : Bytes) -> Result[NpzArchive, NpyError]
@@ -580,8 +580,8 @@ moonNum 读方向适配（S6）——v0.3.0 只新增 NPZ 容器读取（C1，�
 - **不是 NumPy**：无线性代数 / FFT / 广播 / 矩阵运算，无 Tensor framework / 自动微分 /
   模型加载（PyTorch 等）。moon-npy 只做 `.npy` 二进制**序列化 / 反序列化**。
 - **不做其他格式**：GGUF / SafeTensors / Parquet 不在范围内。**NPZ** 的未压缩容器读取
-  （`decode_npz`，C1）已随 v0.3.0 发布；未压缩写入（`encode_npz`，N7）已在源码实现并通过
-  NumPy Oracle，但尚未随正式版本发布。压缩 / deflate 读写（含 `savez_compressed`）、zip64、
+  （`decode_npz`，C1）已随 v0.3.0 发布；未压缩写入（`encode_npz`，N7）随 v0.4.0 发布并通过
+  NumPy Oracle。压缩 / deflate 读写（含 `savez_compressed`）、zip64、
   加密成员仍不支持（见 Security 容器层小节）。
 - **dtype 范围**：13 个 dtype —— 11 种 primitive numeric + complex64 / complex128（见
   Compatibility Matrix）。**object dtype 主动拒绝**；half / longdouble / complex256 / bytes /

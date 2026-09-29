@@ -12,11 +12,11 @@
 - 公开源码：<https://github.com/ShunjunGu/moon-npy>；许可证：[Apache-2.0](../LICENSE)。
 - 定位：纯 MoonBit 的 NPY 读写与未压缩 NPZ 容器互操作；核心格式处理无需 Python
   运行时，下面的 Python 命令仅用于外部 NumPy 校验。
-- 本文复现基线：`fb556f2ea5c5bebece009d5b62d9f4d95a7d2a45`。该提交的
-  [模块清单](../moon.mod)声明 `0.4.0`；仓库现有发行记录将它标为候选，已发布包为
-  `0.3.0`。本次未重新核验线上发行状态，提交申报前应更新。
+- 本文 2026-09-26 的复现记录基线为 `fb556f2ea5c5bebece009d5b62d9f4d95a7d2a45`；
+  当前[模块清单](../moon.mod)声明并发布 `0.4.0`。下方旧记录保持原始测试环境与提交号，
+  当前发行证据以 Mooncakes、GitHub 标签和对应 CI 为准。
 - NPY 支持 v1/v2/v3、13 种数值 dtype、大小端与 C／Fortran 存储顺序。访问器返回
-  按存储顺序排列的扁平数组。NPZ 写入是源码候选能力，不能用 `0.3.0` 安装命令复现。
+  按存储顺序排列的扁平数组。NPZ 写入从 `0.4.0` 起可作为已发布库 API 使用。
 - 边界：拒绝 object/pickle；不支持 structured dtype、压缩 NPZ、zip64、mmap 或
   磁盘流式读取。Writer 重编码已解码的数组，不提供任意类型化数组构造接口。
   详见 [README](../README_CN.md) 与[验收规范](spec/acceptance.md)。
