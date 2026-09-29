@@ -129,7 +129,7 @@ To refresh the page's embedded module after a source change, run
 `amor2025/moonNum@0.1.0`（仅 S6 适配器 `src/adapter/moonnum/` 使用，详见下文 Ecosystem
 Adapter）。核心层（format / header / dtype / reader / writer / error / cli）不依赖任何第三方库。
 
-**作为依赖引入**（已发布于 Mooncakes，`mooncakes.io/docs/ShunjunGu/moon-npy`）：
+**作为依赖引入**（已发布于 [Mooncakes](https://mooncakes.io/docs/ShunjunGu/moon-npy@0.4.0)）：
 
 ```bash
 moon add ShunjunGu/moon-npy@0.4.0

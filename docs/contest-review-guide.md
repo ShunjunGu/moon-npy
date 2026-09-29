@@ -14,7 +14,9 @@
   运行时，下面的 Python 命令仅用于外部 NumPy 校验。
 - 本文 2026-09-26 的复现记录基线为 `fb556f2ea5c5bebece009d5b62d9f4d95a7d2a45`；
   当前[模块清单](../moon.mod)声明并发布 `0.4.0`。下方旧记录保持原始测试环境与提交号，
-  当前发行证据以 Mooncakes、GitHub 标签和对应 CI 为准。
+  当前发行证据为 [Mooncakes v0.4.0](https://mooncakes.io/docs/ShunjunGu/moon-npy@0.4.0)、
+  [GitHub 标签](https://github.com/ShunjunGu/moon-npy/tree/v0.4.0)和
+  [发行提交 CI](https://github.com/ShunjunGu/moon-npy/actions/runs/36515319412)。
 - NPY 支持 v1/v2/v3、13 种数值 dtype、大小端与 C／Fortran 存储顺序。访问器返回
   按存储顺序排列的扁平数组。NPZ 写入从 `0.4.0` 起可作为已发布库 API 使用。
 - 边界：拒绝 object/pickle；不支持 structured dtype、压缩 NPZ、zip64、mmap 或
@@ -32,12 +34,12 @@ PowerShell 或 Bash。
 ```sh
 git clone https://github.com/ShunjunGu/moon-npy
 cd moon-npy
-git checkout fb556f2ea5c5bebece009d5b62d9f4d95a7d2a45
+git checkout v0.4.0
 moon check --target native
 python -c "from pathlib import Path; Path('_build/contest-0926').mkdir(parents=True, exist_ok=True)"
 ```
 
-最终验收时应改用已验证的发行提交。当前固定 SHA 用于复现本文事实。
+`v0.4.0` 指向通过 CI 的发行提交 `86133fe02cff83aab02b3875744d67e7fe11e7b9`。
 
 ### 场景一：读取外部 NPY 数组
 
@@ -149,6 +151,6 @@ Python 3.14.0，NumPy 2.3.4。将上述固定提交用 `git archive` 导出至�
 | 申报草稿与模板 | 历史背景资料；不作为本次验收要求 |
 | 至少三个完整场景 | 本文提供输入、操作、输出、判定和边界，供人工撰写引用 |
 | 仓库、演示与 CI | 本文提供索引；提交前核对公开可访问及版本对应关系 |
-| Mooncakes 与 Release | 最终版本、发布状态和发行 SHA 待发行阶段核对 |
+| Mooncakes 与发行标签 | 0.4.0 已发布；标签指向 `86133fe`，同提交 CI 成功；独立消费者安装与 NPY/NPZ API 运行通过 |
 
 公开记录只写核对日期、非敏感结论和公开链接。本文不是主办方通知。

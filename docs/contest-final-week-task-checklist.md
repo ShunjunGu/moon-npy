@@ -58,19 +58,19 @@ Mooncakes 发布及许可证。
 
 ## 9 月 28–29 日：发行与消费者验证
 
-- [ ] **P0：确认 v0.4.0 正式发行。** 核心代码稳定后，填写 `CHANGELOG.md` 的实际
-  日期，并同步英中 README 的版本状态与安装命令；对发行提交运行完整 CI。
-- [ ] **P0：从同一发行提交发布 Mooncakes `0.4.0`。** 先核对 `moon package --list`
-  和发布包内容，再执行发布；确认 Mooncakes 页面可见新版本。该步骤应在验收提交前
-  完成。GitHub `v0.4.0` 标签和 Release 与同一提交对齐。
-- [ ] **P0：在全新消费者项目验证已发布包。** 运行
-  `moon add ShunjunGu/moon-npy@0.4.0`，再调用公开 NPY 与 NPZ 读写 API；保存安装、
-  检查和运行输出。不能用本地源码路径替代已发布包。
+- [x] **P0：确认 v0.4.0 正式发行。** `CHANGELOG.md` 和英中 README 已同步；
+  发行提交 `86133fe` 的 [CI](https://github.com/ShunjunGu/moon-npy/actions/runs/36515319412) 成功。
+- [x] **P0：从同一发行提交发布 Mooncakes `0.4.0`。** 发布包预检通过，
+  [Mooncakes 页面](https://mooncakes.io/docs/ShunjunGu/moon-npy@0.4.0)可公开访问，
+  GitHub [v0.4.0 标签](https://github.com/ShunjunGu/moon-npy/tree/v0.4.0)指向 `86133fe`。
+- [x] **P0：在全新消费者项目验证已发布包。** `moon add ShunjunGu/moon-npy@0.4.0`
+  下载公开包，`moon check --target native` 和运行通过；消费者实际调用 NPY 解码/编码及
+  NPZ 编码/解码。测试项目保存在本地忽略的 `_build/acceptance-consumer/`。
 
 ## 9 月 29 日：按最新通知完成验收交付
 
-- [ ] **P0：将验收内容上传公开 GitHub。** 核对 README、可复现演示、CI、Mooncakes
-  版本和许可证，确认链接可由未登录的评委打开。审核通过者无需再次提交表格。
+- [x] **P0：将验收内容上传公开 GitHub。** README、可复现演示、CI、Mooncakes
+  版本和许可证均可公开访问。审核通过者无需再次提交表格。
 
 ## 9 月 30 日：补件缓冲
 
@@ -93,6 +93,6 @@ Issue / PR。
 | 一页申报书 | [草稿](contest-application-draft.md)已完成；待参赛者自行改写并定稿，另保留[模板](contest-application-template.md) | 2026-09-26 |
 | 申报辅助材料与评审文档 | [三个场景、复现命令及两分钟路径](contest-review-guide.md)已完成；浏览器人工证据另补 | 2026-09-26 |
 | 浏览器演示证据 | 待补充 | — |
-| v0.4.0 发行提交、CI 与 GitHub Release | 待发布 | — |
-| Mooncakes 0.4.0 与干净消费者验证 | 待发布 | — |
-| 最终公开仓库验收 | 待核对最新提交、CI 与公开链接 | — |
+| v0.4.0 发行提交、CI 与标签 | [`86133fe` 的 CI 成功](https://github.com/ShunjunGu/moon-npy/actions/runs/36515319412)；[v0.4.0 标签](https://github.com/ShunjunGu/moon-npy/tree/v0.4.0)。GitHub Release 页面尚未创建 | 2026-09-29 |
+| Mooncakes 0.4.0 与干净消费者验证 | [包已发布](https://mooncakes.io/docs/ShunjunGu/moon-npy@0.4.0)；独立消费者安装、检查和 NPY/NPZ 运行通过 | 2026-09-29 |
+| 最终公开仓库验收 | [仓库](https://github.com/ShunjunGu/moon-npy)、CI、Mooncakes 与验收指南链接已核对 | 2026-09-29 |
