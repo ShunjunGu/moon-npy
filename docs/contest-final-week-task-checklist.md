@@ -93,6 +93,6 @@ Issue / PR。
 | 一页申报书 | [草稿](contest-application-draft.md)已完成；待参赛者自行改写并定稿，另保留[模板](contest-application-template.md) | 2026-09-26 |
 | 申报辅助材料与评审文档 | [三个场景、复现命令及两分钟路径](contest-review-guide.md)已完成；浏览器人工证据另补 | 2026-09-26 |
 | 浏览器演示证据 | 待补充 | — |
-| v0.4.0 发行提交、CI 与标签 | [`86133fe` 的 CI 成功](https://github.com/ShunjunGu/moon-npy/actions/runs/36515319412)；[v0.4.0 标签](https://github.com/ShunjunGu/moon-npy/tree/v0.4.0)。GitHub Release 页面尚未创建 | 2026-09-29 |
+| v0.4.0 发行提交、CI 与标签 | [`86133fe` 的 CI 成功](https://github.com/ShunjunGu/moon-npy/actions/runs/36515319412)；[v0.4.0 标签](https://github.com/ShunjunGu/moon-npy/tree/v0.4.0)和[GitHub Release](https://github.com/ShunjunGu/moon-npy/releases/tag/v0.4.0)均已公开 | 2026-09-29 |
 | Mooncakes 0.4.0 与干净消费者验证 | [包已发布](https://mooncakes.io/docs/ShunjunGu/moon-npy@0.4.0)；独立消费者安装、检查和 NPY/NPZ 运行通过 | 2026-09-29 |
 | 最终公开仓库验收 | [仓库](https://github.com/ShunjunGu/moon-npy)、CI、Mooncakes 与验收指南链接已核对 | 2026-09-29 |

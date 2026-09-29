@@ -101,6 +101,9 @@ jobs:
       - name: moon check
         run: moon check --target native
 
+      - name: moon build (whole module, native)
+        run: moon build --target native
+
       # --- Gate 3/3: unit tests (§19 "MoonBit Unit Tests") ---
       - name: moon test
         run: moon test --target native

@@ -1,5 +1,7 @@
 pkgtype(kind: "foreign_library")
 
+supported_targets = "wasm-gc"
+
 import {
   "ShunjunGu/moon-npy/src/cli",
 }
